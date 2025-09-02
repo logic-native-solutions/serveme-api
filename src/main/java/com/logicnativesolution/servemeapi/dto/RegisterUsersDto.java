@@ -7,7 +7,7 @@ import lombok.Data;
 import java.time.LocalDate;
 
 @Data
-public class RegisterUsers {
+public class RegisterUsersDto {
     @NotBlank(message = "First name is required")
     @Size(min = 5, max = 50, message = "First name cannot be more than 50 characters long")
     private String firstName;

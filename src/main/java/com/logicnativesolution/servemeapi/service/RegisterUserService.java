@@ -1,6 +1,6 @@
 package com.logicnativesolution.servemeapi.service;
 
-import com.logicnativesolution.servemeapi.dto.RegisterUsers;
+import com.logicnativesolution.servemeapi.dto.RegisterUsersDto;
 import com.logicnativesolution.servemeapi.entities.User;
 import com.logicnativesolution.servemeapi.exception.BadRequestException;
 import com.logicnativesolution.servemeapi.mapper.RegisterUserMapper;
@@ -18,7 +18,7 @@ public class RegisterUserService {
     private final RegisterUserMapper registerUserMapper;
     private final PasswordEncoder passwordEncoder;
 
-    public User registerUser(@Valid @RequestBody RegisterUsers request) {
+    public User registerUser(@Valid @RequestBody RegisterUsersDto request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new BadRequestException("Email has already been registered");
         }

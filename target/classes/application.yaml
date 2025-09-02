@@ -15,3 +15,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  jwt:
+    secret: ${JWT_SECRET}
+    accessTokenExpiration: 100 # 5 min
+    refreshTokenExpiration: 604800 # 7 days

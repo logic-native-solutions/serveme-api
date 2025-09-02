@@ -1,7 +1,6 @@
 package com.logicnativesolution.servemeapi.controller;
 
-import com.logicnativesolution.servemeapi.dto.RegisterUsers;
-import com.logicnativesolution.servemeapi.entities.User;
+import com.logicnativesolution.servemeapi.dto.RegisterUsersDto;
 import com.logicnativesolution.servemeapi.service.RegisterUserService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
@@ -14,13 +13,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 
 @Controller
 @AllArgsConstructor
-@RequestMapping("/api/register")
+@RequestMapping("/api/auth")
 public class RegisterUserController {
     private final RegisterUserService registerUserService;
 
-    @PostMapping("/account")
-    private ResponseEntity<User> registerUserRequest(@Valid @RequestBody RegisterUsers request) {
-        var registeredUser = registerUserService.registerUser(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(registeredUser);
+    @PostMapping("/register")
+    private ResponseEntity<?> registerUserRequest(@Valid @RequestBody RegisterUsersDto request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(registerUserService.registerUser(request));
     }
 }
