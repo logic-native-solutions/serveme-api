@@ -9,19 +9,19 @@ import java.time.LocalDate;
 @Data
 public class RegisterUsersDto {
     @NotBlank(message = "First name is required")
-    @Size(min = 5, max = 50, message = "First name cannot be more than 50 characters long")
+    @Size(min = 5, max = 50, message = "First name can be between 5-50 characters long")
     private String firstName;
 
     @NotBlank(message = "Last name is required")
-    @Size(min = 5, max = 50, message = "Last name cannot be more than 50 characters long")
+    @Size(min = 5, max = 50, message = "Last name can be between 5-50 characters long")
     private String lastName;
 
     @NotBlank(message = "Gender is required")
-    @Size(min = 4, max = 10, message = "Gender cannot be more than 10 characters long")
+    @Size(min = 4, max = 6, message = "Gender can be between 4-6 characters long")
     private String gender;
 
     @NotBlank(message = "Phone number is required")
-    @Size(min = 10, max = 15, message = "Phone number cannot be more than 15 digits")
+    @Size(min = 10, max = 15, message = "Phone number can be between 10-15 digits")
     private String phoneNumber;
 
     @NotBlank(message = "Identification number is required")
