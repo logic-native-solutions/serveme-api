@@ -1,10 +1,13 @@
 package com.logicnativesolution.servemeapi.service;
 
+import com.logicnativesolution.servemeapi.dto.ForgotPasswordDto;
 import com.logicnativesolution.servemeapi.dto.RegisterUsersDto;
+import com.logicnativesolution.servemeapi.dto.ResetPasswordEmailDto;
 import com.logicnativesolution.servemeapi.entities.User;
 import com.logicnativesolution.servemeapi.exception.BadRequestException;
 import com.logicnativesolution.servemeapi.mapper.RegisterUserMapper;
 import com.logicnativesolution.servemeapi.repository.UserRepository;
+import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -44,6 +47,26 @@ public class RegisterUserService {
 
     private String capitalize(String input) {
         return input.substring(0, 1).toUpperCase() + input.substring(1).toLowerCase();
+    }
+
+    public void resetPassword(ResetPasswordEmailDto resetPasswordEmail,ForgotPasswordDto forgotPassRequest) {
+        var user = userRepository.findByEmail(resetPasswordEmail.getEmail()).orElse(null);
+        var isPasswordEqual = forgotPassRequest.getNewPassword().equals(forgotPassRequest.getConfirmNewPassword());
+
+        if (user == null) {
+            throw new BadRequestException("No user found with email: " + resetPasswordEmail.getEmail());
+        }
+
+        if(!isPasswordEqual) {
+            throw new BadRequestException("New password doesn't match new confirm password");
+        }
+
+        if(isPasswordEqual) {
+            user.setPassword(passwordEncoder.encode(forgotPassRequest.getNewPassword()));
+        }
+
+
+
     }
 }
 

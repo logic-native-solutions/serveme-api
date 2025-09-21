@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DiffGenerationConfig">
+    <option name="snapshotDb" value="false" />
+    <option name="snapshotModelValue" value="serveme-api:serveme-api" />
+    <option name="sourceModelValue" value="serveme-api:serveme-api" />
+    <option name="targetDbValue" value="7c9956b4-7e04-4648-ab58-71d9c61281dd" />
+  </component>
+</project>

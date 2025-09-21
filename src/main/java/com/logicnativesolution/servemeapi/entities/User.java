@@ -7,6 +7,7 @@ import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -23,6 +24,19 @@ public class User {
     @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "role_id")
     private Role role;
+
+    @OneToOne(mappedBy = "user")
+    @JoinColumn(name = "documents_id")
+    private Document document;
+
+    @OneToMany(mappedBy = "user")
+    private List<Address> addresses;
+
+    @OneToMany(mappedBy = "provider")
+    private List<ServiceArea> ServiceAreas;
+
+    @OneToMany(mappedBy = "user")
+    private List<PaymentsDetails> paymentsDetails;
 
     @Column(name = "id_number")
     private String idNumber;

@@ -52,7 +52,10 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain oauth2Chain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/oauth2/**", "/login/oauth2/**", "/api/auth/oauth2/**")
+                .securityMatcher("/oauth2/**", "/login/oauth2/**",
+                        "/api/auth/oauth2/**","api/file/upload",
+                        "api/documents/rsa-id/**","api/v1/profile/**",
+                        "api/auth/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())

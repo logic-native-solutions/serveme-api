@@ -19,9 +19,11 @@ public class Address {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @OnDelete(action = OnDeleteAction.CASCADE)
     @JoinColumn(name = "user_id")
     private User user;
+
+    @Column(name = "province")
+    private String province;
 
     @Column(name = "street")
     private String street;

@@ -4,6 +4,7 @@ import com.logicnativesolution.servemeapi.config.JwtConfig;
 import com.logicnativesolution.servemeapi.defaults.ChannelEnum;
 import com.logicnativesolution.servemeapi.dto.*;
 import com.logicnativesolution.servemeapi.repository.UserRepository;
+import com.logicnativesolution.servemeapi.service.AryaRsaIdService;
 import com.logicnativesolution.servemeapi.service.EmailService;
 import com.logicnativesolution.servemeapi.service.JwtService;
 import com.logicnativesolution.servemeapi.service.RegisterUserService;
@@ -42,6 +43,8 @@ public class AuthenticationUserController {
     private final EmailService emailService;
     private final OtpCodesDto otpCodes;
     private final CurrentUser currentUser;
+    private final ResetPasswordEmailDto resetPasswordEmail;
+    private final AryaRsaIdService aryaRsaIdService;
 
     @PostMapping("/register")
     public ResponseEntity<SimpleResponseDto> registerUserRequest(@Valid @RequestBody RegisterUsersDto request) {
@@ -51,8 +54,7 @@ public class AuthenticationUserController {
 
         return ResponseEntity.accepted().body(new SimpleResponseDto(
                 "OTP_REQUIRED",
-                "We sent verification codes to your phone/email.",
-                currentUser.getUser()
+                "We sent verification codes to your phone/email."
         ));
     }
 
@@ -109,7 +111,7 @@ public class AuthenticationUserController {
     public ResponseEntity<?> verifyOtp(@Valid @RequestBody VerifyOtpDto request) {
         if (currentUser.getUser() == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification.", null));
+                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification."));
         }
 
         Map<String, Boolean> authorized = new HashMap<>();
@@ -125,7 +127,7 @@ public class AuthenticationUserController {
         }
 
         if (otpCodes.isSmsVerified() && otpCodes.isEmailVerified()) {
-            return ResponseEntity.ok(new PendingResponseDto("VERIFIED", authorized));
+            return ResponseEntity.ok(new SimpleResponseDto("VERIFIED", "Both channels verified."));
         }
 
         return ResponseEntity.ok(new PendingResponseDto("PENDING", authorized));
@@ -138,17 +140,17 @@ public class AuthenticationUserController {
     ) {
         if (currentUser.getUser() == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification.", null));
+                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification."));
         }
 
         if (!"VERIFIED".equals(request.getStatus())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("PENDING", "User not fully verified yet.", null));
+                    .body(new SimpleResponseDto("PENDING", "User not fully verified yet."));
         }
 
         // Persist pending user BEFORE generating tokens if JwtService queries DB
         var saved = userRepository.save(currentUser.getUser());
-//        log.info("Persisted verified user {}", saved.getEmail());
+        log.info("Persisted verified user {}", saved.getEmail());
 
         var accessToken = jwtService.generateAccessToken(saved.getEmail());
         var refreshToken = jwtService.generateRefreshToken(saved.getEmail());
@@ -202,4 +204,20 @@ public class AuthenticationUserController {
         return ResponseEntity.ok(new JwtTokenDto(accessToken));
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordDto forgotPassRequest) {
+        registerUserService.resetPassword(resetPasswordEmail,forgotPassRequest);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/send-reset-password-code")
+    public ResponseEntity<?> sendResetPasswordCodeRequest(@RequestBody ResetPasswordEmailDto resetPasswordEmailRequest) {
+        resetPasswordEmail.setEmail(resetPasswordEmailRequest.getEmail());
+        emailService.sendEmail(
+                resetPasswordEmailRequest.getEmail(),
+                "ServeMe Reset Password Otp Code 🔐",
+                String.valueOf(emailService.generateEmailPhoneOtp())
+        );
+        return  ResponseEntity.ok().build();
+    }
 }

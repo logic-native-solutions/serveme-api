@@ -41,3 +41,13 @@ spring:
     secret: ${JWT_SECRET}
     accessTokenExpiration: ${JWT_ACCESS_TOKEN}
     refreshTokenExpiration:  ${JWT_REFRESH_TOKEN}
+    accessTokenExpiration: 100 # 5 min
+    refreshTokenExpiration: 604800 # 7 days
+
+arya:
+  base-url: https://ping.arya.ai
+  rsaid-path: /api/v1/rsaid
+  face-verify-path: /api/v1/verifyFace
+  id-api-key: ${ARYA_ID_INFO_EXTRACT_API_KEY}
+  face-api-key: ${ARYA_FACE_VERIFY_API_KEY}
+  timeout-ms: 30000

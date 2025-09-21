@@ -36,13 +36,19 @@ CREATE TABLE profiles (
 -- ======================
 -- Addresses
 -- ======================
-CREATE TABLE addresses (
-    id          UUID PRIMARY KEY,
-    user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+CREATE TABLE addresses
+(
+    id          UUID NOT NULL,
+    user_id     UUID,
+    province    VARCHAR(255),
     street      VARCHAR(255),
-    city        VARCHAR(100),
-    postal_code VARCHAR(20)
+    city        VARCHAR(255),
+    postal_code VARCHAR(255),
+    CONSTRAINT pk_addresses PRIMARY KEY (id)
 );
+
+ALTER TABLE addresses
+    ADD CONSTRAINT FK_ADDRESSES_ON_USER FOREIGN KEY (user_id) REFERENCES users (id);
 
 -- ======================
 -- Categories
@@ -156,8 +162,8 @@ CREATE TABLE verifications (
 CREATE TABLE service_areas (
     id          UUID PRIMARY KEY,
     provider_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    city        VARCHAR(100),
-    region      VARCHAR(100)
+    city        VARCHAR(255),
+    province    VARCHAR(255)
 );
 
 -- ======================

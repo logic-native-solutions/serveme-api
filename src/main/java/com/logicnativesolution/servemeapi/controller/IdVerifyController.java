@@ -1,0 +1,111 @@
+package com.logicnativesolution.servemeapi.controller;
+
+import com.logicnativesolution.servemeapi.dto.RsaIdResult;
+import com.logicnativesolution.servemeapi.service.AryaRsaIdService;
+import com.logicnativesolution.servemeapi.validation.SaIdRules;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/documents/rsa-id")
+@RequiredArgsConstructor
+public class IdVerifyController {
+    private final AryaRsaIdService aryaService;
+
+    @PostMapping(value = "/front", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> verifyFront(
+            @RequestParam("frontIdImage") MultipartFile front
+    ) throws IOException {
+
+        if (front == null || front.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error","front image required"));
+        }
+        if (front.getSize() > 8 * 1024 * 1024) {
+            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                    .body(Map.of("error","file too large"));
+        }
+
+        String ct = front.getContentType();
+        if (ct == null || !(ct.equals("image/jpeg") || ct.equals("image/png"))) {
+            return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                    .body(Map.of("error","only jpeg/png allowed"));
+        }
+
+        RsaIdResult extracted = aryaService.extractFromFront(front);
+
+        // run local checks
+        boolean idFormatValid = extracted.getIdNumber() != null && SaIdRules.isValidSouthAfricanId(extracted.getIdNumber());
+        boolean ocrConfOk = extracted.getOcrConfidence() == null || extracted.getOcrConfidence() >= 0.75f;
+        String decision = (idFormatValid && ocrConfOk) ? "AUTO_PASS" : "MANUAL_REVIEW";
+
+        Map<String,Object> verdict = Map.of(
+                "extracted", extracted,
+                "checks", Map.of(
+                        "idFormatValid", idFormatValid,
+                        "ocrConfidenceOk", ocrConfOk
+                ),
+                "decision", decision
+        );
+
+//        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+//        String currentUserId = (String) authentication.getPrincipal(); // your JWT filter sets principal to userId
+//        // Let the service compare extracted fields vs the user's registration details and persist audit
+//        aryaService.verifyIdInfo(currentUserId, extracted);
+
+        // Persist submission (DB) and store raw JSON + file location for audit (recommended)
+        return ResponseEntity.ok(verdict);
+
+
+
+    }
+
+
+    @PostMapping(value = "/face-verify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> faceVerify(
+            @RequestParam("frontIdImage") MultipartFile front,
+            @RequestParam("selfieWithId") MultipartFile selfie
+    ) throws IOException {
+        // Validate inputs
+        if (front == null || front.isEmpty() || selfie == null || selfie.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error","frontIdImage and selfieWithId are required"));
+        }
+        if (front.getSize() > 8 * 1024 * 1024 || selfie.getSize() > 8 * 1024 * 1024) {
+            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                    .body(Map.of("error","file too large"));
+        }
+        String ct1 = front.getContentType();
+        String ct2 = selfie.getContentType();
+        if ((ct1 == null || !(ct1.equals("image/jpeg") || ct1.equals("image/png")))
+                || (ct2 == null || !(ct2.equals("image/jpeg") || ct2.equals("image/png")))) {
+            return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                    .body(Map.of("error","only jpeg/png allowed"));
+        }
+
+        // Use Step 2 service: compare stored front (here we pass the front bytes directly) with the selfie
+        Map<String, Object> res = aryaService.compareStoredFrontWithSelfie(front.getBytes(), selfie);
+
+        Double similarity = (Double) res.get("similarity");
+        double threshold = 0.85; // tune 0.80–0.90 based on your risk appetite
+
+        String decision = (similarity != null && similarity >= threshold) ? "AUTO_PASS" : "MANUAL_REVIEW";
+
+        return ResponseEntity.ok(Map.of(
+                "similarity", similarity,
+                "threshold", threshold,
+                "decision", decision,
+                "raw", res.get("compareRaw")
+        ));
+    }
+}
