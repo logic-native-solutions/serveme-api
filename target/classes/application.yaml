@@ -26,7 +26,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/serveme_db
     username: postgres
-    password: password
+    password: Suzan0820
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -42,6 +42,10 @@ spring:
     accessTokenExpiration: 100 # 5 min
     refreshTokenExpiration: 604800 # 7 days
 
-#server:
-#  address: 0.0.0.0
-#  port: 8000
+arya:
+  base-url: https://ping.arya.ai
+  rsaid-path: /api/v1/rsaid
+  face-verify-path: /api/v1/verifyFace
+  id-api-key: ${ARYA_ID_INFO_EXTRACT_API_KEY}
+  face-api-key: ${ARYA_FACE_VERIFY_API_KEY}
+  timeout-ms: 30000

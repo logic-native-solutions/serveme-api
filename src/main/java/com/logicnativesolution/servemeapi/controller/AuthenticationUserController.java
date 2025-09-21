@@ -4,6 +4,7 @@ import com.logicnativesolution.servemeapi.config.JwtConfig;
 import com.logicnativesolution.servemeapi.defaults.ChannelEnum;
 import com.logicnativesolution.servemeapi.dto.*;
 import com.logicnativesolution.servemeapi.repository.UserRepository;
+import com.logicnativesolution.servemeapi.service.AryaRsaIdService;
 import com.logicnativesolution.servemeapi.service.EmailService;
 import com.logicnativesolution.servemeapi.service.JwtService;
 import com.logicnativesolution.servemeapi.service.RegisterUserService;
@@ -42,6 +43,8 @@ public class AuthenticationUserController {
     private final EmailService emailService;
     private final OtpCodesDto otpCodes;
     private final CurrentUser currentUser;
+    private final ResetPasswordEmailDto resetPasswordEmail;
+    private final AryaRsaIdService aryaRsaIdService;
 
     @PostMapping("/register")
     public ResponseEntity<SimpleResponseDto> registerUserRequest(@Valid @RequestBody RegisterUsersDto request) {
@@ -53,6 +56,8 @@ public class AuthenticationUserController {
                 "OTP_REQUIRED",
                 "We sent verification codes to your phone/email."
         ));
+
+
     }
 
     @PostMapping("/login")
@@ -88,7 +93,7 @@ public class AuthenticationUserController {
     public ResponseEntity<Void> sendOtp(@Valid @RequestBody OtpSessionDto request) {
         if (ChannelEnum.SMS.name().equals(request.getChannel())) {
             otpCodes.setPhoneOtp(String.valueOf(emailService.generateEmailPhoneOtp()));
-            log.debug("SMS code generated: {}", otpCodes.getPhoneOtp());
+            System.out.println("SMS code generated: "+ otpCodes.getPhoneOtp());
         }
 
         if (ChannelEnum.EMAIL.name().equals(request.getChannel())) {
@@ -98,7 +103,7 @@ public class AuthenticationUserController {
                     "ServeMe Email verification Code",
                     otpCodes.getEmailOtp()
             );
-            log.debug("Email code generated: {}", otpCodes.getEmailOtp());
+            System.out.println("Email code generated: " + otpCodes.getEmailOtp());
         }
 
         return ResponseEntity.ok().build();
@@ -190,4 +195,20 @@ public class AuthenticationUserController {
         return ResponseEntity.ok(new JwtTokenDto(accessToken));
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordDto forgotPassRequest) {
+        registerUserService.resetPassword(resetPasswordEmail,forgotPassRequest);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/send-reset-password-code")
+    public ResponseEntity<?> sendResetPasswordCodeRequest(@RequestBody ResetPasswordEmailDto resetPasswordEmailRequest) {
+        resetPasswordEmail.setEmail(resetPasswordEmailRequest.getEmail());
+        emailService.sendEmail(
+                resetPasswordEmailRequest.getEmail(),
+                "ServeMe Reset Password Otp Code 🔐",
+                String.valueOf(emailService.generateEmailPhoneOtp())
+        );
+        return  ResponseEntity.ok().build();
+    }
 }

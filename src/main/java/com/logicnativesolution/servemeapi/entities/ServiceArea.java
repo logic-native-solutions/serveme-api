@@ -26,7 +26,7 @@ public class ServiceArea {
     @Column(name = "city")
     private String city;
 
-    @Column(name = "region")
-    private String region;
+    @Column(name = "province")
+    private String province;
 
 }
