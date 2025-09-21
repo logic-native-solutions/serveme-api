@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 
 @Generated(
     value = "org.mapstruct.ap.MappingProcessor",
-    date = "2025-09-16T11:27:07+0200",
-    comments = "version: 1.6.3, compiler: javac, environment: Java 24.0.2 (Oracle Corporation)"
+    date = "2025-09-19T12:24:36+0200",
+    comments = "version: 1.6.3, compiler: Eclipse JDT (IDE) 3.43.0.v20250819-1513, environment: Java 21.0.8 (Eclipse Adoptium)"
 )
 @Component
 public class RegisterUserMapperImpl implements RegisterUserMapper {
@@ -21,14 +21,14 @@ public class RegisterUserMapperImpl implements RegisterUserMapper {
 
         User user = new User();
 
-        user.setIdNumber( request.getIdNumber() );
-        user.setFirstName( request.getFirstName() );
-        user.setLastName( request.getLastName() );
-        user.setEmail( request.getEmail() );
-        user.setPhoneNumber( request.getPhoneNumber() );
         user.setDateOfBirth( request.getDateOfBirth() );
+        user.setEmail( request.getEmail() );
+        user.setFirstName( request.getFirstName() );
         user.setGender( request.getGender() );
+        user.setIdNumber( request.getIdNumber() );
+        user.setLastName( request.getLastName() );
         user.setPassword( request.getPassword() );
+        user.setPhoneNumber( request.getPhoneNumber() );
 
         return user;
     }

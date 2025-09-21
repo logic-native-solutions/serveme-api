@@ -2,7 +2,7 @@ package com.logicnativesolution.servemeapi.config;
 
 import com.logicnativesolution.servemeapi.filters.JwtAuthenticationFilter;
 import com.logicnativesolution.servemeapi.service.AuthenticationUserService;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -23,10 +23,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 @Configuration
 @EnableWebSecurity
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final AuthenticationUserService authenticationUserService;
+    private final AuthenticationUserService authenticationUserService; // must implement UserDetailsService
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
@@ -34,20 +34,20 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
+    // ✅ Properly wire DaoAuthenticationProvider with your UserDetailsService
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider(authenticationUserService);
-        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder());
-        return daoAuthenticationProvider;
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(authenticationUserService);
+        provider.setPasswordEncoder(passwordEncoder());
+        return provider;
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration authenticationConfiguration
-    ) throws Exception {
-        return  authenticationConfiguration.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
+        return cfg.getAuthenticationManager();
     }
 
+    // OAuth2 chain (unchanged, if you need it)
     @Bean
     @Order(1)
     public SecurityFilterChain oauth2Chain(HttpSecurity http) throws Exception {
@@ -56,25 +56,27 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
-                .oauth2Login(oauth -> oauth.successHandler(
-                   (req, res, auth) -> {
-                       // mint JWT + redirect to frontend
+                .oauth2Login(oauth -> oauth.successHandler((req, res, auth) -> {
+                    // mint JWT + redirect to frontend
                 }));
         return http.build();
     }
 
+    // API chain (stateless + JWT)
     @Bean
     @Order(2)
     public SecurityFilterChain apiChain(HttpSecurity http) throws Exception {
-        http.sessionManagement(c -> c
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        http
                 .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(c -> c
                         .requestMatchers("/api/auth/**").permitAll()
-                        .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .exceptionHandling(c ->
-                        c.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)));
+                        .anyRequest().authenticated()
+                )
+                .exceptionHandling(c -> c.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 }

@@ -17,12 +17,16 @@ public class RegisterUserService {
     private final PasswordEncoder passwordEncoder;
 
     public User registerUser(RegisterUsersDto request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email has already been registered");
-        }
-
         if (userRepository.existsByPhoneNumber(request.getPhoneNumber())) {
             throw new BadRequestException("Phone number has already been registered");
+        }
+
+        if (userRepository.existsByIdNumber(request.getIdNumber())) {
+            throw new BadRequestException("Id number has already been registered");
+        }
+
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new BadRequestException("Email has already been registered");
         }
 
         var userDto = registerUserMapper.toUserEntity(sanitizeData(request));

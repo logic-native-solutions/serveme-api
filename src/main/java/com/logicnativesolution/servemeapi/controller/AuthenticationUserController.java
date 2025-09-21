@@ -51,7 +51,8 @@ public class AuthenticationUserController {
 
         return ResponseEntity.accepted().body(new SimpleResponseDto(
                 "OTP_REQUIRED",
-                "We sent verification codes to your phone/email."
+                "We sent verification codes to your phone/email.",
+                currentUser.getUser()
         ));
     }
 
@@ -88,7 +89,7 @@ public class AuthenticationUserController {
     public ResponseEntity<Void> sendOtp(@Valid @RequestBody OtpSessionDto request) {
         if (ChannelEnum.SMS.name().equals(request.getChannel())) {
             otpCodes.setPhoneOtp(String.valueOf(emailService.generateEmailPhoneOtp()));
-            log.debug("SMS code generated: {}", otpCodes.getPhoneOtp());
+            System.out.printf("\nSMS code generated: %s", otpCodes.getPhoneOtp());
         }
 
         if (ChannelEnum.EMAIL.name().equals(request.getChannel())) {
@@ -98,7 +99,7 @@ public class AuthenticationUserController {
                     "ServeMe Email verification Code",
                     otpCodes.getEmailOtp()
             );
-            log.debug("Email code generated: {}", otpCodes.getEmailOtp());
+            System.out.printf("\nEmail code generated: %s", otpCodes.getEmailOtp());
         }
 
         return ResponseEntity.ok().build();
@@ -108,7 +109,7 @@ public class AuthenticationUserController {
     public ResponseEntity<?> verifyOtp(@Valid @RequestBody VerifyOtpDto request) {
         if (currentUser.getUser() == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification."));
+                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification.", null));
         }
 
         Map<String, Boolean> authorized = new HashMap<>();
@@ -117,16 +118,14 @@ public class AuthenticationUserController {
             boolean isOk = request.getCode().equals(otpCodes.getPhoneOtp());
             otpCodes.setSmsVerified(isOk);
             authorized.put(ChannelEnum.SMS.name(), isOk);
-        }
-
-        if (ChannelEnum.EMAIL.name().equals(request.getChannel())) {
+        } else if (ChannelEnum.EMAIL.name().equals(request.getChannel())) {
             boolean isOk = request.getCode().equals(otpCodes.getEmailOtp());
             otpCodes.setEmailVerified(isOk);
             authorized.put(ChannelEnum.EMAIL.name(), isOk);
         }
 
         if (otpCodes.isSmsVerified() && otpCodes.isEmailVerified()) {
-            return ResponseEntity.ok(new SimpleResponseDto("VERIFIED", "Both channels verified."));
+            return ResponseEntity.ok(new PendingResponseDto("VERIFIED", authorized));
         }
 
         return ResponseEntity.ok(new PendingResponseDto("PENDING", authorized));
@@ -139,17 +138,17 @@ public class AuthenticationUserController {
     ) {
         if (currentUser.getUser() == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification."));
+                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification.", null));
         }
 
         if (!"VERIFIED".equals(request.getStatus())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("PENDING", "User not fully verified yet."));
+                    .body(new SimpleResponseDto("PENDING", "User not fully verified yet.", null));
         }
 
         // Persist pending user BEFORE generating tokens if JwtService queries DB
         var saved = userRepository.save(currentUser.getUser());
-        log.info("Persisted verified user {}", saved.getEmail());
+//        log.info("Persisted verified user {}", saved.getEmail());
 
         var accessToken = jwtService.generateAccessToken(saved.getEmail());
         var refreshToken = jwtService.generateRefreshToken(saved.getEmail());
@@ -160,7 +159,20 @@ public class AuthenticationUserController {
         otpCodes.setSmsVerified(false);
         otpCodes.setEmailVerified(false);
 
-        return setRefreshCookieAndRespond(accessToken, refreshToken, response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                setRefreshCookieAndRespond(accessToken, refreshToken, response));
+    }
+
+    @PostMapping("/otp/update-destination")
+    public ResponseEntity<?> updatePhoneEmailDestination(
+            @Valid @RequestBody UpdateOtpChannelDto request
+    ) {
+        if (ChannelEnum.SMS.name().equals(request.getChannel())) {
+            currentUser.getUser().setPhoneNumber(request.getDestination());
+        } else if (ChannelEnum.EMAIL.name().equals(request.getChannel())) {
+            currentUser.getUser().setEmail(request.getDestination());
+        }
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/refresh")
