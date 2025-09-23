@@ -1,2 +1,51 @@
+# --- Spring Boot / Java ---
+target/                 # Maven build output
+build/                  # Gradle build output
+out/                    # General build output
+
+# --- Logs ---
+*.log
+logs/
+*.out
+
+# --- Environment / Secrets ---
 .env
-target/
+*.env
+application-*.yml
+application-*.properties
+secret.properties
+
+# --- IDE files ---
+### IntelliJ IDEA ###
+.idea/
+*.iml
+*.ipr
+*.iws
+
+### Eclipse ###
+.project
+.classpath
+.settings/
+bin/
+
+### VS Code ###
+.vscode/
+
+# --- OS / Misc ---
+.DS_Store
+Thumbs.db
+
+# --- Packaging ---
+*.jar
+*.war
+*.ear
+
+# --- Tests ---
+/surefire-reports/
+/test-output/
+
+# --- Temporary / cache ---
+*.swp
+*.swo
+*.tmp
+*.bak

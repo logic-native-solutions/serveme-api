@@ -1,6 +1,7 @@
 spring:
   application:
     name: server-api
+
   mail:
     host: ${MAIL_HOST}
     port: ${MAIL_PORT}
@@ -41,3 +42,16 @@ spring:
     secret: ${JWT_SECRET}
     accessTokenExpiration: ${JWT_ACCESS_TOKEN}
     refreshTokenExpiration:  ${JWT_REFRESH_TOKEN}
+
+serveme:
+  cookies:
+    secure: true   # or false for dev
+    max-age: 604800   # optional: cookie lifetime in seconds (e.g., 7 days)
+
+arya:
+  base-url: ${ARYA_BASE_URL}
+  rsaid-path: ${ARYA_RSAID_PATH}
+  face-verify-path: ${ARYA_FACE_VERIFY_PATH}
+  id-api-key: ${ARYA_ID_INFO_EXTRACT_API_KEY}
+  face-api-key: ${ARYA_FACE_VERIFY_API_KEY}
+  timeout-ms: ${ARYA_TIMEOUT_MS}

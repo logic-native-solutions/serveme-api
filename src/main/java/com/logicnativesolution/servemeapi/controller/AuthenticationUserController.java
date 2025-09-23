@@ -1,6 +1,7 @@
 package com.logicnativesolution.servemeapi.controller;
 
 import com.logicnativesolution.servemeapi.config.JwtConfig;
+import com.logicnativesolution.servemeapi.config.CookieConfig;
 import com.logicnativesolution.servemeapi.defaults.ChannelEnum;
 import com.logicnativesolution.servemeapi.dto.*;
 import com.logicnativesolution.servemeapi.repository.UserRepository;
@@ -45,6 +46,7 @@ public class AuthenticationUserController {
     private final CurrentUser currentUser;
     private final ResetPasswordEmailDto resetPasswordEmail;
     private final AryaRsaIdService aryaRsaIdService;
+    private final CookieConfig cookieConfig;
 
     @PostMapping("/register")
     public ResponseEntity<SimpleResponseDto> registerUserRequest(@Valid @RequestBody RegisterUsersDto request) {
@@ -54,7 +56,8 @@ public class AuthenticationUserController {
 
         return ResponseEntity.accepted().body(new SimpleResponseDto(
                 "OTP_REQUIRED",
-                "We sent verification codes to your phone/email."
+                "We sent verification codes to your phone/email.",
+                currentUser.getUser()
         ));
     }
 
@@ -70,17 +73,20 @@ public class AuthenticationUserController {
         var accessToken = jwtService.generateAccessToken(request.getEmail());
         var refreshToken = jwtService.generateRefreshToken(request.getEmail());
 
-        return setRefreshCookieAndRespond(accessToken, refreshToken, response);
+        return setRefreshCookieAndRespond(accessToken, refreshToken, response, HttpStatus.OK);
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse resp) {
+        boolean secure = isSecureEnv();
+        String sameSite = secure ? "Strict" : "Lax";
+
         var expired = ResponseCookie
                 .from(REFRESH_COOKIE_NAME, "")
                 .httpOnly(true)
-                .secure(true)
+                .secure(secure)
                 .path(REFRESH_COOKIE_PATH)
-                .sameSite("Strict")
+                .sameSite(sameSite)
                 .maxAge(0)
                 .build();
         resp.addHeader(HttpHeaders.SET_COOKIE, expired.toString());
@@ -111,7 +117,8 @@ public class AuthenticationUserController {
     public ResponseEntity<?> verifyOtp(@Valid @RequestBody VerifyOtpDto request) {
         if (currentUser.getUser() == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification."));
+                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION",
+                            "No user awaiting verification.", null));
         }
 
         Map<String, Boolean> authorized = new HashMap<>();
@@ -127,7 +134,8 @@ public class AuthenticationUserController {
         }
 
         if (otpCodes.isSmsVerified() && otpCodes.isEmailVerified()) {
-            return ResponseEntity.ok(new SimpleResponseDto("VERIFIED", "Both channels verified."));
+            return ResponseEntity.ok(new SimpleResponseDto("VERIFIED",
+                    "Both channels verified.", null));
         }
 
         return ResponseEntity.ok(new PendingResponseDto("PENDING", authorized));
@@ -140,12 +148,14 @@ public class AuthenticationUserController {
     ) {
         if (currentUser.getUser() == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION", "No user awaiting verification."));
+                    .body(new SimpleResponseDto("NO_PENDING_REGISTRATION",
+                            "No user awaiting verification.", null));
         }
 
         if (!"VERIFIED".equals(request.getStatus())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new SimpleResponseDto("PENDING", "User not fully verified yet."));
+                    .body(new SimpleResponseDto("PENDING",
+                            "User not fully verified yet.", null));
         }
 
         // Persist pending user BEFORE generating tokens if JwtService queries DB
@@ -161,8 +171,7 @@ public class AuthenticationUserController {
         otpCodes.setSmsVerified(false);
         otpCodes.setEmailVerified(false);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(
-                setRefreshCookieAndRespond(accessToken, refreshToken, response));
+        return setRefreshCookieAndRespond(accessToken, refreshToken, response, HttpStatus.CREATED);
     }
 
     @PostMapping("/otp/update-destination")
@@ -179,29 +188,69 @@ public class AuthenticationUserController {
 
     @PostMapping("/refresh")
     public ResponseEntity<JwtTokenDto> refreshUserRequest(
-            @CookieValue(REFRESH_COOKIE_NAME) String refreshToken
+            @CookieValue(value = REFRESH_COOKIE_NAME, required = false) String refreshToken
     ) {
-        if (!jwtService.validateToken(refreshToken)) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            log.warn("Refresh attempt without cookie");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        try {
+            if (!jwtService.validateToken(refreshToken)) {
+                log.warn("Refresh token failed validation");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
-        var userId = jwtService.getUserIdFromToken(refreshToken);
-        var user = userRepository.findById(UUID.fromString(userId)).orElseThrow();
-        var accessToken = jwtService.generateAccessToken(user.getEmail());
+            var userId = jwtService.getUserIdFromToken(refreshToken);
+            UUID uid;
+            try {
+                uid = UUID.fromString(userId);
+            } catch (Exception parseEx) {
+                log.warn("Refresh token subject is not a UUID: {}", userId);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
 
-        return ResponseEntity.ok(new JwtTokenDto(accessToken));
+            var user = userRepository.findById(uid).orElse(null);
+            if (user == null) {
+                log.warn("User not found for refresh subject: {}", uid);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            var accessToken = jwtService.generateAccessToken(user.getEmail());
+            return setRefreshCookieAndRespond(accessToken, refreshToken, null, HttpStatus.OK);
+        } catch (Exception ex) {
+            log.warn("Refresh failed", ex);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 
-    private ResponseEntity<JwtTokenDto> setRefreshCookieAndRespond(String accessToken, String refreshToken, HttpServletResponse response) {
-        var cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, refreshToken)
-                .httpOnly(true)
-                .secure(true)
-                .path(REFRESH_COOKIE_PATH)
-                .sameSite("Strict")
-                .maxAge(jwtConfig.getRefreshTokenExpiration())
-                .build();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-        return ResponseEntity.ok(new JwtTokenDto(accessToken));
+    private ResponseEntity<JwtTokenDto> setRefreshCookieAndRespond(
+            String accessToken,
+            String refreshToken,
+            HttpServletResponse response,
+            HttpStatus status
+    ) {
+        boolean secure = isSecureEnv();
+        String sameSite = secure ? "Strict" : "Lax";
+
+        if (refreshToken != null && response != null) {
+            var cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, refreshToken)
+                    .httpOnly(true)
+                    .secure(secure)
+                    .path(REFRESH_COOKIE_PATH)
+                    .sameSite(sameSite)
+                    .maxAge(jwtConfig.getRefreshTokenExpiration())
+                    .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        }
+        return ResponseEntity.status(status).body(new JwtTokenDto(accessToken));
+    }
+
+    /**
+     * Determines whether refresh cookies should be marked Secure/Strict.
+     * Controlled by `serveme.cookies.secure` in application.yaml
+     */
+    private boolean isSecureEnv() {
+        return cookieConfig.isSecure();
     }
 
     @PostMapping("/forgot-password")

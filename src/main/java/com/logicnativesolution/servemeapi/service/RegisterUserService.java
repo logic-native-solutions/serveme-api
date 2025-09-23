@@ -7,7 +7,6 @@ import com.logicnativesolution.servemeapi.entities.User;
 import com.logicnativesolution.servemeapi.exception.BadRequestException;
 import com.logicnativesolution.servemeapi.mapper.RegisterUserMapper;
 import com.logicnativesolution.servemeapi.repository.UserRepository;
-import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -57,15 +56,12 @@ public class RegisterUserService {
             throw new BadRequestException("No user found with email: " + resetPasswordEmail.getEmail());
         }
 
-        if(!isPasswordEqual) {
-            throw new BadRequestException("New password doesn't match new confirm password");
-        }
 
         if(isPasswordEqual) {
             user.setPassword(passwordEncoder.encode(forgotPassRequest.getNewPassword()));
+        } else {
+            throw new BadRequestException("New password doesn't match new confirm password");
         }
-
-
 
     }
 }
