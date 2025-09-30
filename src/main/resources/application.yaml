@@ -44,9 +44,13 @@ spring:
     refreshTokenExpiration:  ${JWT_REFRESH_TOKEN}
 
 serveme:
-  cookies:
-    secure: true   # or false for dev
-    max-age: 604800   # optional: cookie lifetime in seconds (e.g., 7 days)
+  cookie:
+    name: refresh_token
+    path: /api/auth/refresh
+    secure: false          # <── http dev must be false
+    sameSite: Lax          # Lax is fine for native apps
+    httpOnly: true
+    maxAgeSeconds: 2592000  # 30 days
 
 arya:
   base-url: ${ARYA_BASE_URL}
@@ -55,3 +59,8 @@ arya:
   id-api-key: ${ARYA_ID_INFO_EXTRACT_API_KEY}
   face-api-key: ${ARYA_FACE_VERIFY_API_KEY}
   timeout-ms: ${ARYA_TIMEOUT_MS}
+
+logging:
+  level:
+    org.hibernate.SQL: ${LOG_SQL_LEVEL_PROD:${LOG_SQL_LEVEL:INFO}}
+    org.hibernate.orm.jdbc.bind: ${LOG_BIND_LEVEL_PROD:${LOG_BIND_LEVEL:OFF}}

@@ -1,13 +1,17 @@
 package com.logicnativesolution.servemeapi.config;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 import lombok.Data;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.stereotype.Component;
 
 @Data
-@Configuration
-@ConfigurationProperties(prefix = "serveme.cookies")
+@Component
+@ConfigurationProperties(prefix = "serveme.cookie")
 public class CookieConfig {
-    /** Whether to mark the refresh cookie as Secure + SameSite=Strict. */
+    private String name = "refresh_token";
     private boolean secure = false;
+    private boolean httpOnly = true;
+    private String sameSite = "Lax";
+    private String path = "/api/auth/refresh";
+    private long maxAgeSeconds = 2592000;
 }

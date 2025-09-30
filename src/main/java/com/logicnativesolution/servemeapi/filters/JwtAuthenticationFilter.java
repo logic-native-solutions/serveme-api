@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String token = authHeader.substring(7);
 
         // ✅ If NOT valid, continue without setting auth
-        if (!jwtService.isTokenValid(token)) {
+        if (!jwtService.validateToken(token)) {
             filterChain.doFilter(request, response);
             return;
         }

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -20,13 +21,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final AuthenticationUserService authenticationUserService; // must implement UserDetailsService
+    private final AuthenticationUserService authenticationUserService; // implements UserDetailsService
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
@@ -34,7 +38,6 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // ✅ Properly wire DaoAuthenticationProvider with your UserDetailsService
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(authenticationUserService);
@@ -47,32 +50,37 @@ public class SecurityConfig {
         return cfg.getAuthenticationManager();
     }
 
-    // OAuth2 chain (unchanged, if you need it)
+    // Only for real OAuth2 login endpoints (kept separate from API).
     @Bean
     @Order(1)
     public SecurityFilterChain oauth2Chain(HttpSecurity http) throws Exception {
         http
-                .securityMatcher("/oauth2/**", "/login/oauth2/**",
-                        "/api/auth/oauth2/**","api/file/upload",
-                        "api/documents/rsa-id/**","api/v1/profile/**",
-                        "api/auth/**")
+                .securityMatcher("/oauth2/**", "/login/oauth2/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .oauth2Login(oauth -> oauth.successHandler((req, res, auth) -> {
-                    // mint JWT + redirect to frontend
+                    // mint JWT + redirect to frontend if you use OAuth2
                 }));
         return http.build();
     }
 
-    // API chain (stateless + JWT)
+    // Stateless API + JWT. Owns /api/** including /api/auth/**
     @Bean
     @Order(2)
     public SecurityFilterChain apiChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(request -> {
+                    CorsConfiguration cfg = new CorsConfiguration();
+                    cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                    cfg.setAllowedHeaders(List.of("*"));
+                    cfg.setAllowCredentials(true);
+                    return cfg;
+                }))
                 .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(c -> c
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated()
                 )

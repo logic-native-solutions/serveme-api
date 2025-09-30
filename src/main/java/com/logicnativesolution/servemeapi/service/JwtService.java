@@ -1,7 +1,7 @@
 package com.logicnativesolution.servemeapi.service;
 
 import com.logicnativesolution.servemeapi.config.JwtConfig;
-import com.logicnativesolution.servemeapi.repository.UserRepository;
+import com.logicnativesolution.servemeapi.entities.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -16,34 +16,27 @@ import java.util.Date;
 @Service
 public class JwtService {
     private final JwtConfig jwtConfig;
-    private final UserRepository userRepository;
 
-    public String generateAccessToken(String email) {
-        return generateToken(email, jwtConfig.getAccessTokenExpiration()); // seconds
+    public String generateAccessTokenFor(User user) {
+        return generateTokenFor(user, jwtConfig.getAccessTokenExpiration());
     }
 
-    public String generateRefreshToken(String email) {
-        return generateToken(email, jwtConfig.getRefreshTokenExpiration()); // seconds
+    public String generateRefreshTokenFor(User user) {
+        return generateTokenFor(user, jwtConfig.getRefreshTokenExpiration());
     }
 
-    private String generateToken(String email, long expirationSeconds) {
-        var user = userRepository.findByEmail(email).orElseThrow();
-
+    private String generateTokenFor(User user, long expirationSeconds) {
         long expMs = System.currentTimeMillis() + (expirationSeconds * 1000L);
 
         return Jwts.builder()
-                .subject(String.valueOf(user.getId()))       // subject = userId
-                .claim("email", user.getEmail())             // email claim
+                .subject(user.getId().toString()) // ✅ sub = UUID (what refresh expects)
+                .claim("email", user.getEmail())
                 .claim("firstName", user.getFirstName())
                 .claim("lastName", user.getLastName())
                 .issuedAt(new Date())
                 .expiration(new Date(expMs))
                 .signWith(Keys.hmacShaKeyFor(jwtConfig.getSecret().getBytes(StandardCharsets.UTF_8)))
                 .compact();
-    }
-
-    public boolean isTokenValid(String token) {
-        return validateToken(token);
     }
 
     public boolean validateToken(String token) {
