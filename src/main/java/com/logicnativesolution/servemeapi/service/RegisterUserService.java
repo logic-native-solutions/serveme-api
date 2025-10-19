@@ -1,7 +1,7 @@
 package com.logicnativesolution.servemeapi.service;
 
 import com.logicnativesolution.servemeapi.dto.ForgotPasswordDto;
-import com.logicnativesolution.servemeapi.dto.RegisterUsersDto;
+import com.logicnativesolution.servemeapi.dto.user.RegisterUsersDto;
 import com.logicnativesolution.servemeapi.dto.ResetPasswordEmailDto;
 import com.logicnativesolution.servemeapi.entities.User;
 import com.logicnativesolution.servemeapi.exception.BadRequestException;
@@ -44,7 +44,7 @@ public class RegisterUserService {
         return request;
     }
 
-    private String capitalize(String input) {
+    public String capitalize(String input) {
         return input.substring(0, 1).toUpperCase() + input.substring(1).toLowerCase();
     }
 

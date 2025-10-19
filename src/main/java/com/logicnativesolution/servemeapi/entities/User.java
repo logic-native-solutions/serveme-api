@@ -61,6 +61,9 @@ public class User {
     @Column(name = "gender")
     private String gender;
 
+    @Column(name = "verified")
+    private boolean verified;
+
     @Column(name = "password")
     private String password;
 

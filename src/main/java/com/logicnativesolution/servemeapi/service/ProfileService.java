@@ -1,9 +1,8 @@
 package com.logicnativesolution.servemeapi.service;
 
-import com.logicnativesolution.servemeapi.dto.AddressDto;
-import com.logicnativesolution.servemeapi.dto.PaymentDetailsDto;
-import com.logicnativesolution.servemeapi.dto.ServiceAreaDto;
-import com.logicnativesolution.servemeapi.dto.ServiceDto;
+import com.logicnativesolution.servemeapi.controller.HomeController;
+import com.logicnativesolution.servemeapi.dto.*;
+import com.logicnativesolution.servemeapi.dto.profile.EditProfileDto;
 import com.logicnativesolution.servemeapi.mapper.ServiceMapper;
 import com.logicnativesolution.servemeapi.mapper.UserAddressMapper;
 import com.logicnativesolution.servemeapi.repository.*;
@@ -20,10 +19,36 @@ public class ProfileService {
     private final ServiceRepository serviceRepository;
     private final ServiceAreaRepository serviceAreaRepository;
     private final PaymentsDetailsRepository paymentsDetailsRepository;
+    private final HomeController homeController;
+    private final RegisterUserService registerUserService;
 
+
+
+    public void editProfile(EditProfileDto editProfileDto){
+        var user = userRepository.findByEmail(homeController.getCurrentUserEmail()).orElse(null);
+
+        if (user == null)
+            throw new RuntimeException("User not found");
+
+        if (user.getEmail().equals(editProfileDto.getEmail()))
+            throw new RuntimeException("Email cannot be same as current email");
+        if (user.getFirstName().equals(editProfileDto.getFirstName()))
+            throw new RuntimeException("First name cannot be same as current first name");
+        if (user.getLastName().equals(editProfileDto.getLastName()))
+            throw new RuntimeException("Last name cannot be same as current last name");
+        if (user.getPhoneNumber().equals(editProfileDto.getPhone()))
+            throw new RuntimeException("Phone cannot be same as current phone number");
+
+        user.setFirstName(registerUserService.capitalize(editProfileDto.getFirstName()).trim());
+        user.setLastName(registerUserService.capitalize(editProfileDto.getLastName()).trim());
+        user.setEmail(editProfileDto.getEmail().toLowerCase().trim());
+        user.setPhoneNumber(editProfileDto.getPhone());
+
+        userRepository.save(user);
+    }
 
     public AddressDto addUserAddress(AddressDto addressRequest) {
-        var user = userRepository.findById(addressRequest.getUserId()).orElse(null);
+        var user = userRepository.findByEmail(homeController.getCurrentUserEmail()).orElse(null);
 
         if(user == null) {
             throw new RuntimeException("User not found");

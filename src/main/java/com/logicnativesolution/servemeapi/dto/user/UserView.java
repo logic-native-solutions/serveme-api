@@ -1,4 +1,4 @@
-package com.logicnativesolution.servemeapi.dto;
+package com.logicnativesolution.servemeapi.dto.user;
 
 import java.util.UUID;
 

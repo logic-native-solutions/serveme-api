@@ -1,9 +1,7 @@
 package com.logicnativesolution.servemeapi.controller;
 
-import com.logicnativesolution.servemeapi.dto.AddressDto;
-import com.logicnativesolution.servemeapi.dto.PaymentDetailsDto;
-import com.logicnativesolution.servemeapi.dto.ServiceAreaDto;
-import com.logicnativesolution.servemeapi.dto.ServiceDto;
+import com.logicnativesolution.servemeapi.dto.*;
+import com.logicnativesolution.servemeapi.dto.profile.EditProfileDto;
 import com.logicnativesolution.servemeapi.service.ProfileService;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
@@ -17,8 +15,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/profile")
 @AllArgsConstructor
 public class ProfileController {
-
     private final ProfileService profileService;
+
+
+    @PostMapping("/edit-profile")
+    public ResponseEntity<?> editProfile(@RequestBody EditProfileDto editProfileDto){
+        profileService.editProfile(editProfileDto);
+        return ResponseEntity.ok().build();
+    }
+
 
     @PostMapping("/address")
     public ResponseEntity<AddressDto> addAddress(@Valid @RequestBody AddressDto addressRequest){

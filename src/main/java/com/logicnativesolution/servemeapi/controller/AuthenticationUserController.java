@@ -2,6 +2,10 @@ package com.logicnativesolution.servemeapi.controller;
 
 import com.logicnativesolution.servemeapi.config.CookieConfig;
 import com.logicnativesolution.servemeapi.dto.*;
+import com.logicnativesolution.servemeapi.dto.user.*;
+import com.logicnativesolution.servemeapi.dto.verify.*;
+import com.logicnativesolution.servemeapi.entities.Role;
+import com.logicnativesolution.servemeapi.service.FirestoreService;
 import com.logicnativesolution.servemeapi.util.ChannelUtils;
 import com.logicnativesolution.servemeapi.entities.User;
 import com.logicnativesolution.servemeapi.repository.RoleRepository;
@@ -13,6 +17,7 @@ import com.logicnativesolution.servemeapi.util.CookieUtils;
 import com.logicnativesolution.servemeapi.util.RegisterStatusUtils;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -35,10 +40,13 @@ import java.util.UUID;
 
 @Slf4j
 @Validated
+@Getter
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/auth")
 public class AuthenticationUserController {
+
+    private final FirestoreService firestoreService;
 
     private static final String REFRESH_COOKIE_NAME = "refresh_token";
     private static final String REFRESH_COOKIE_PATH = "/api/auth/refresh";
@@ -60,9 +68,11 @@ public class AuthenticationUserController {
 
     @PostMapping("/register")
     public ResponseEntity<StatusResponseDto> registerUserRequest(@Valid @RequestBody RegisterUsersDto request) {
-        var role = roleRepository.findByName(request.getRole());
+        Role roleEntity = roleRepository.findByName(
+                request.getRole() != null ? request.getRole().trim().toUpperCase() : null
+        );
 
-        if (role == null) {
+        if (roleEntity == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new StatusResponseDto(
                             RegisterStatusUtils.INVALID_ROLE.name(),
@@ -71,7 +81,7 @@ public class AuthenticationUserController {
         }
 
         User user = registerUserService.registerUser(request);
-        user.setRole(role);
+        user.setRole(roleEntity);
         currentUser.setUser(user);
 
         return ResponseEntity.accepted().body(new StatusResponseDto(
@@ -87,7 +97,7 @@ public class AuthenticationUserController {
 
     @PostMapping("/login")
     public ResponseEntity<JwtTokenDto> loginUserRequest(
-            @Valid @RequestBody com.logicnativesolution.servemeapi.dto.LoginUsersDto request
+            @Valid @RequestBody LoginUsersDto request
     ) {
         // Authenticate credentials first
         authenticationManager.authenticate(
@@ -238,6 +248,22 @@ public class AuthenticationUserController {
         // Persist first
         User saved = userRepository.save(currentUser.getUser());
 //        log.info("Persisted verified user {}", saved.getEmail());
+
+        // Write users doc to Firestore (best-effort, non-fatal on error)
+        try {
+            Map<String, Object> userDoc = new HashMap<>();
+            userDoc.put("role", saved.getRole() != null ? saved.getRole().getName() : null);
+            userDoc.put("firstName", saved.getFirstName());
+            userDoc.put("lastName", saved.getLastName());
+            userDoc.put("email", saved.getEmail());
+            userDoc.put("phone", saved.getPhoneNumber());
+            userDoc.put("photoUrl", null);
+            userDoc.put("createdAt", java.time.Instant.now().toString());
+            userDoc.put("updatedAt", java.time.Instant.now().toString());
+            firestoreService.set("users", saved.getId().toString(), userDoc);
+        } catch (Exception ex) {
+            log.warn("Failed to write users doc to Firestore", ex);
+        }
 
         String accessToken  = jwtService.generateAccessTokenFor(saved);
         String refreshToken = jwtService.generateRefreshTokenFor(saved);

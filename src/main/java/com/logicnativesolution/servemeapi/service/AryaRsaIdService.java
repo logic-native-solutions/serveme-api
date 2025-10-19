@@ -144,44 +144,72 @@ public class AryaRsaIdService {
 
     }
 
-    public void verifyIdInfo(String userId, RsaIdResult extracted) {
+    /**
+     * Builds a list of human-readable mismatches instead of throwing.
+     * Possible values: "Name", "ID Number", "Date of Birth", "Gender".
+     */
+    public List<String> computeMismatchesForUser(String userId, RsaIdResult extracted) {
         var user = userRepository.findById(UUID.fromString(userId)).orElse(null);
         if (user == null) {
-            throw new RuntimeException("User not found");
+            return List.of("User not found");
         }
 
-        // Name match (case-insensitive). Throw if either first or last name does not match.
+        List<String> mismatches = new ArrayList<>();
+
+        // --- Name (order-agnostic, middle-name tolerant) ---
         String uFirst = user.getFirstName() == null ? "" : user.getFirstName().trim();
         String uLast  = user.getLastName()  == null ? "" : user.getLastName().trim();
         String eFirst = extracted.getFirstName() == null ? "" : extracted.getFirstName().trim();
         String eLast  = extracted.getLastName()  == null ? "" : extracted.getLastName().trim();
-        if (!uFirst.equalsIgnoreCase(eFirst) || !uLast.equalsIgnoreCase(eLast)) {
-            throw new RuntimeException("First and/or Last name does not match");
+        String eFull  = extracted.getFullName()  == null ? (eFirst + " " + eLast).trim() : extracted.getFullName().trim();
+
+        Set<String> extractedTokens = tokenizeName(eFull);
+        boolean lastNameOk = !uLast.isBlank() && extractedTokens.contains(uLast.toLowerCase(Locale.ENGLISH));
+        boolean firstNameOk = uFirst.isBlank() || extractedTokens.contains(uFirst.toLowerCase(Locale.ENGLISH));
+        if (!lastNameOk || !firstNameOk) {
+            mismatches.add("Name");
         }
 
-        // ID number exact match
+        // --- ID Number ---
         if (user.getIdNumber() == null || extracted.getIdNumber() == null || !user.getIdNumber().equals(extracted.getIdNumber())) {
-            throw new RuntimeException("ID number does not match");
+            mismatches.add("ID Number");
         }
 
-        // Gender: compare first letter (M/F), case-insensitive
+        // --- Gender (first letter match, tolerates Male/Female vs M/F) ---
         String userGender = user.getGender() == null ? "" : user.getGender().trim();
         String extractedGender = extracted.getGender() == null ? "" : extracted.getGender().trim();
-        String g1 = userGender.isEmpty() ? "" : userGender.substring(0, 1).toUpperCase();
-        String g2 = extractedGender.isEmpty() ? "" : extractedGender.substring(0, 1).toUpperCase();
+        String g1 = userGender.isEmpty() ? "" : userGender.substring(0, 1).toUpperCase(Locale.ENGLISH);
+        String g2 = extractedGender.isEmpty() ? "" : extractedGender.substring(0, 1).toUpperCase(Locale.ENGLISH);
         if (!g1.equals(g2)) {
-            throw new RuntimeException("Gender does not match");
+            mismatches.add("Gender");
         }
 
-        // DOB: normalize formats and compare dates
+        // --- DOB ---
         LocalDate userDob = null;
         if (user.getDateOfBirth() != null) {
             userDob = (user.getDateOfBirth() instanceof LocalDate ld) ? ld : LocalDate.parse(user.getDateOfBirth().toString());
         }
         LocalDate extDob = parseDob(extracted.getDateOfBirth());
         if (userDob != null && extDob != null && !userDob.equals(extDob)) {
-            throw new RuntimeException("Date of birth does not match");
+            mismatches.add("Date of Birth");
         }
+
+        return mismatches;
+    }
+
+    private static Set<String> tokenizeName(String name) {
+        if (name == null) return Collections.emptySet();
+        String cleaned = name
+                .replaceAll("[^\\p{L}\\p{Nd}\\s]", " ") // keep letters/digits/spaces; drop punctuation
+                .toLowerCase(Locale.ENGLISH)
+                .trim();
+        if (cleaned.isBlank()) return Collections.emptySet();
+        String[] parts = cleaned.split("\\s+");
+        Set<String> out = new HashSet<>();
+        for (String p : parts) {
+            if (!p.isBlank()) out.add(p);
+        }
+        return out;
     }
 
     private static LocalDate parseDob(String s) {

@@ -1,8 +1,9 @@
 package com.logicnativesolution.servemeapi.config;
 
 import com.logicnativesolution.servemeapi.filters.JwtAuthenticationFilter;
+import com.logicnativesolution.servemeapi.filters.FirebaseAuthFilter;
 import com.logicnativesolution.servemeapi.service.AuthenticationUserService;
-import lombok.RequiredArgsConstructor;
+import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -27,11 +28,12 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@RequiredArgsConstructor
+@AllArgsConstructor
 public class SecurityConfig {
 
-    private final AuthenticationUserService authenticationUserService; // implements UserDetailsService
+    private final AuthenticationUserService authenticationUserService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final FirebaseAuthFilter firebaseAuthFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -74,6 +76,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(request -> {
                     CorsConfiguration cfg = new CorsConfiguration();
                     cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+                    cfg.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*", "http://192.168.*.*:*"));
                     cfg.setAllowedHeaders(List.of("*"));
                     cfg.setAllowCredentials(true);
                     return cfg;
@@ -81,13 +84,16 @@ public class SecurityConfig {
                 .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(c -> c
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/documents/rsa-id/**", "/api/v1/profile/**","/api/v1/services").permitAll()
+                        // Provider-only endpoints
+                        .requestMatchers("/api/v1/providers/**").hasRole("PROVIDER")
+                        // everything else requires authentication
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(c -> c.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authenticationProvider(authenticationProvider())
+                // First, try Firebase ID token authentication; then fallback to existing JWT filter
+                .addFilterBefore(firebaseAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
         return http.build();
-    }
-}
+    }}

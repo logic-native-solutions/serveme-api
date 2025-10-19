@@ -1,14 +1,14 @@
 package com.logicnativesolution.servemeapi.controller;
 
+import com.logicnativesolution.servemeapi.dto.FaceIdDecision;
 import com.logicnativesolution.servemeapi.dto.RsaIdResult;
+import com.logicnativesolution.servemeapi.repository.UserRepository;
 import com.logicnativesolution.servemeapi.service.AryaRsaIdService;
 import com.logicnativesolution.servemeapi.validation.SaIdRules;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -16,12 +16,17 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/documents/rsa-id")
 @RequiredArgsConstructor
 public class IdVerifyController {
+    private final UserRepository userRepository;
+    private FaceIdDecision faceIdDecision;
+    private AuthenticationUserController authenticationUserController;
     private final AryaRsaIdService aryaService;
 
     @PostMapping(value = "/front", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -44,11 +49,25 @@ public class IdVerifyController {
         }
 
         RsaIdResult extracted = aryaService.extractFromFront(front);
+        // Compute field mismatches against the authenticated user (no throwing)
+        String currentUserId = null;
+        try {
+            currentUserId = String.valueOf(authenticationUserController.getCurrentUser().getUser().getId());
+        } catch (Exception ignored) {}
+
+        List<String> mismatches = Collections.emptyList();
+        if (currentUserId != null && !currentUserId.isBlank()) {
+            mismatches = aryaService.computeMismatchesForUser(currentUserId, extracted);
+        }
 
         // run local checks
         boolean idFormatValid = extracted.getIdNumber() != null && SaIdRules.isValidSouthAfricanId(extracted.getIdNumber());
         boolean ocrConfOk = extracted.getOcrConfidence() == null || extracted.getOcrConfidence() >= 0.75f;
-        String decision = (idFormatValid && ocrConfOk) ? "AUTO_PASS" : "MANUAL_REVIEW";
+        String decision = (idFormatValid && ocrConfOk && (mismatches == null || mismatches.isEmpty()))
+                ? "AUTO_PASS"
+                : "MANUAL_REVIEW";
+
+        faceIdDecision.setIdDecision(decision);
 
         Map<String,Object> verdict = Map.of(
                 "extracted", extracted,
@@ -56,13 +75,9 @@ public class IdVerifyController {
                         "idFormatValid", idFormatValid,
                         "ocrConfidenceOk", ocrConfOk
                 ),
+                "mismatches", mismatches,
                 "decision", decision
         );
-
-//        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-//        String currentUserId = (String) authentication.getPrincipal(); // your JWT filter sets principal to userId
-//        // Let the service compare extracted fields vs the user's registration details and persist audit
-//        aryaService.verifyIdInfo(currentUserId, extracted);
 
         // Persist submission (DB) and store raw JSON + file location for audit (recommended)
         return ResponseEntity.ok(verdict);
@@ -100,6 +115,17 @@ public class IdVerifyController {
         double threshold = 0.85; // tune 0.80–0.90 based on your risk appetite
 
         String decision = (similarity != null && similarity >= threshold) ? "AUTO_PASS" : "MANUAL_REVIEW";
+
+        faceIdDecision.setFaceDecision(decision);
+
+        if (faceIdDecision.getFaceDecision().equals("AUTO_PASS") && faceIdDecision.getIdDecision().equals("AUTO_PASS")) {
+            var user = userRepository.findById(authenticationUserController.getCurrentUser().getUser().getId()).orElse(null);
+            if (user == null) {
+                return ResponseEntity.badRequest().body(Map.of("error","user not found"));
+            }
+
+            user.setVerified(true);
+        }
 
         return ResponseEntity.ok(Map.of(
                 "similarity", similarity,

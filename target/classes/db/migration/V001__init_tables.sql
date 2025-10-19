@@ -19,6 +19,7 @@ CREATE TABLE users (
    phone_number  VARCHAR(20) UNIQUE NOT NULL,
    date_of_birth DATE NOT NULL,
    gender        VARCHAR(10) NOT NULL,
+   verified      BOOLEAN,
    password      VARCHAR(255) NOT NULL
 );
 

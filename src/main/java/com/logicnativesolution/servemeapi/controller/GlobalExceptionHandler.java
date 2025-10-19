@@ -7,8 +7,11 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.util.HashMap;
+import java.util.Map;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -17,6 +20,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
     }
 
+    @ExceptionHandler({ MaxUploadSizeExceededException.class, MultipartException.class })
+    public ResponseEntity<Map<String, Object>> handleMaxUpload(Exception ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(Map.of(
+                "error", "file too large",
+                "code", "PAYLOAD_TOO_LARGE",
+                "message", "The uploaded file exceeds the maximum allowed size."
+        ));
+    }
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<?> handleBadCredentialException(Exception e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());

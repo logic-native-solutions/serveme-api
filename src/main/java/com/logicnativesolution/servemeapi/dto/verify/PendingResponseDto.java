@@ -1,4 +1,4 @@
-package com.logicnativesolution.servemeapi.dto;
+package com.logicnativesolution.servemeapi.dto.verify;
 
 import java.util.Map;
 

@@ -1,17 +1,17 @@
 package com.logicnativesolution.servemeapi.mapper;
 
-import com.logicnativesolution.servemeapi.dto.RegisterUsersDto;
+import com.logicnativesolution.servemeapi.dto.user.RegisterUsersDto;
 import com.logicnativesolution.servemeapi.entities.User;
 import javax.annotation.processing.Generated;
 import org.springframework.stereotype.Component;
 
 @Generated(
     value = "org.mapstruct.ap.MappingProcessor",
-    date = "2025-09-22T10:35:44+0200",
+    date = "2025-10-16T18:37:03+0200",
     comments = "version: 1.6.3, compiler: javac, environment: Java 24.0.2 (Oracle Corporation)"
 )
 @Component
-public class RegisterUserMapperImpl implements RegisterUserMapper {
+public class RegisterUserMapperImpl extends RegisterUserMapper {
 
     @Override
     public User toUserEntity(RegisterUsersDto request) {
@@ -21,6 +21,7 @@ public class RegisterUserMapperImpl implements RegisterUserMapper {
 
         User user = new User();
 
+        user.setRole( map( request.getRole() ) );
         user.setIdNumber( request.getIdNumber() );
         user.setFirstName( request.getFirstName() );
         user.setLastName( request.getLastName() );

@@ -1,7 +1,10 @@
 spring:
   application:
     name: server-api
-
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 8MB
   mail:
     host: ${MAIL_HOST}
     port: ${MAIL_PORT}
@@ -15,7 +18,6 @@ spring:
           starttls:
             enable:
               true
-
   security:
     oauth2:
       client:
@@ -24,12 +26,14 @@ spring:
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
 
+
+  server:
+    port: ${SERVER_PORT}
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: ${DB_DRIVER_CLASSNAME}
-
   jpa:
     hibernate:
       ddl-auto: update   # can be 'validate', 'create', 'create-drop', 'update', or 'none'
@@ -37,11 +41,43 @@ spring:
     properties:
       hibernate:
         dialect: ${JPA_DIALECT}
-
   jwt:
     secret: ${JWT_SECRET}
     accessTokenExpiration: ${JWT_ACCESS_TOKEN}
     refreshTokenExpiration:  ${JWT_REFRESH_TOKEN}
+
+server:
+  port: ${SERVER_PORT}
+
+  app:
+    firebase:
+      projectId: ${FIREBASE_PROJECT_ID}
+      credentialsFile: ${GOOGLE_APPLICATION_CREDENTIALS:}
+    # Optional: provide inline JSON instead of a file path
+    # credentialsJson: ${FIREBASE_CREDENTIALS_JSON:}
+# Deprecated Stripe settings (kept for backward compatibility during migration)
+stripe:
+  secretKey: ${STRIPE_SECRET_KEY:}
+  webhookSecret: ${STRIPE_WEBHOOK_SECRET:}
+  applicationFeePercent: 15
+
+# Paystack settings
+paystack:
+  secretKey: ${PAYSTACK_SECRET_KEY}
+
+app:
+  # Paystack app configuration
+  paystack:
+    baseUrl: ${PAYSTACK_BASE_URL:https://api.paystack.co}
+    secretKey: ${PAYSTACK_SECRET_KEY}
+    commissionPercent: ${PLATFORM_COMMISSION_PERCENT:${SERVEME_COMMISSION_PERCENT:15}}
+  # Stripe (deprecated)
+  stripe:
+    # Used for Stripe Connect onboarding return/refresh URLs
+    returnUrl: ${STRIPE_ONBOARD_RETURN_URL:}
+    refreshUrl: ${STRIPE_ONBOARD_REFRESH_URL:}
+maps:
+  serverApiKey: ${GOOGLE_MAPS_SERVER_KEY}
 
 serveme:
   cookie:
