@@ -82,13 +82,7 @@ public class ProvidersController {
         // Keep legacy serviceId if provided (for backward compatibility with older docs)
         if (req.getServiceId() != null) provider.put("serviceId", req.getServiceId());
 
-        // Stripe linking info (stored under provider.stripe)
-        if (req.getStripeAccountId() != null || req.getStripePayoutsEnabled() != null) {
-            Map<String, Object> stripe = new HashMap<>();
-            if (req.getStripeAccountId() != null) stripe.put("accountId", req.getStripeAccountId());
-            if (req.getStripePayoutsEnabled() != null) stripe.put("payoutsEnabled", req.getStripePayoutsEnabled());
-            provider.put("stripe", stripe);
-        }
+        // NOTE: Stripe integration is deprecated and ignored.
 
         // Defaults for ProviderDoc
         provider.putIfAbsent("ratingAvg", 0.0d);
@@ -118,7 +112,89 @@ public class ProvidersController {
                 firestoreService.set("users", uid, userUpdate);
             }
 
-            return ResponseEntity.ok().build();
+            // Auto-create Paystack subaccount during onboarding if details are provided
+            boolean attemptedPaystack = false;
+            if (paystackConfig.getSecretKey() != null) {
+                String businessName = trimToNull(req.getBusinessName());
+                String accountNumber = trimToNull(req.getAccountNumber());
+                String settlementBank = trimToNull(req.getSettlementBank());
+                String bankName = trimToNull(req.getBankName());
+                if (accountNumber != null && (settlementBank != null || bankName != null)) {
+                    attemptedPaystack = true;
+                    try {
+                        String resolvedBank = resolveSASettlementBank(settlementBank, bankName);
+                        if (resolvedBank == null) {
+                            return ResponseEntity.badRequest().body(Map.of(
+                                    "error", true,
+                                    "reason", "bank_not_resolved",
+                                    "message", "Unable to resolve settlement bank for South Africa. Provide bankName (e.g., 'First National Bank', 'FNB', 'Standard Bank', 'ABSA')."
+                            ));
+                        }
+                        Map<String, Object> body = new HashMap<>();
+                        body.put("business_name", businessName != null ? businessName : ("Provider " + uid));
+                        body.put("settlement_bank", resolvedBank);
+                        body.put("account_number", accountNumber);
+                        Double commission = paystackConfig.getCommissionPercent();
+                        if (commission != null) body.put("percentage_charge", commission);
+                        if (req.getSettlementSchedule() != null) body.put("settlement_schedule", req.getSettlementSchedule());
+                        String json = objectMapper.writeValueAsString(body);
+                        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                                .uri(java.net.URI.create(paystackConfig.getBaseUrl() + "/subaccount"))
+                                .header("Authorization", paystackConfig.getAuthHeader())
+                                .header("Content-Type", "application/json")
+                                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json))
+                                .build();
+                        java.net.http.HttpResponse<String> resp = java.net.http.HttpClient.newHttpClient().send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+                        if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                            com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(resp.body());
+                            if (root.path("status").asBoolean(false)) {
+                                String subaccountCode = root.path("data").path("subaccount_code").asText(null);
+                                Map<String, Object> paystack = new HashMap<>();
+                                paystack.put("subaccountCode", subaccountCode);
+                                paystack.put("settlementBank", resolvedBank);
+                                paystack.put("accountNumber", accountNumber);
+                                if (commission != null) paystack.put("percentageCharge", commission);
+                                firestoreService.set("providers", uid, Map.of("paystack", paystack));
+                            } else {
+                                return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                                        "error", true,
+                                        "stage", "create_subaccount",
+                                        "message", root.path("message").asText("Paystack subaccount create failed")
+                                ));
+                            }
+                        } else {
+                            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                                    "error", true,
+                                    "status", resp.statusCode(),
+                                    "stage", "create_subaccount",
+                                    "body", resp.body()
+                            ));
+                        }
+                    } catch (Exception ex) {
+                        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                                "error", true,
+                                "stage", "create_subaccount",
+                                "message", ex.getMessage()
+                        ));
+                    }
+                }
+            }
+
+            Map<String, Object> out = new HashMap<>();
+            out.put("onboarded", true);
+            if (attemptedPaystack) {
+                // include current paystack link status snapshot
+                try {
+                    Object snap = firestoreService.get("providers", uid);
+                    Class<?> docSnapClass = Class.forName("com.google.cloud.firestore.DocumentSnapshot");
+                    @SuppressWarnings("unchecked") Map<String, Object> data = (Map<String, Object>) docSnapClass.getMethod("getData").invoke(snap);
+                    Object paystack = data != null ? data.get("paystack") : null;
+                    if (paystack instanceof Map<?,?> m) {
+                        out.put("paystack", m);
+                    }
+                } catch (Exception ignore) {}
+            }
+            return ResponseEntity.ok(out);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to complete onboarding");
         }
@@ -1035,7 +1111,7 @@ public class ProvidersController {
         if (saBanksCache != null && (now - saBanksCacheAtMs) < SA_BANKS_TTL_MS) {
             return saBanksCache;
         }
-        String url1 = paystackConfig.getBaseUrl() + "/bank?country=south africa";
+        String url1 = paystackConfig.getBaseUrl() + "/bank?country=ZA";
         String url2 = paystackConfig.getBaseUrl() + "/bank?currency=ZAR";
         java.util.List<java.util.Map<String, Object>> out = tryFetchBanks(url1);
         if (out == null || out.isEmpty()) out = tryFetchBanks(url2);

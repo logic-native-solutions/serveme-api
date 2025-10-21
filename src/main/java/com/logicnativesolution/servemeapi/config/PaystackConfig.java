@@ -28,7 +28,9 @@ public class PaystackConfig implements InitializingBean {
         this.env = env;
     }
 
-    private static String trimToNull(String s) { return (s == null || s.isBlank()) ? null : s.trim(); }
+    private static String trimToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
+    }
 
     private String secretKey;
     private String baseUrl;
