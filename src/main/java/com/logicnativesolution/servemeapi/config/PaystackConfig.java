@@ -33,10 +33,12 @@ public class PaystackConfig implements InitializingBean {
     }
 
     private String secretKey;
+    private String publicKey;
     private String baseUrl;
     private Double commissionPercent;
 
     public String getSecretKey() { return secretKey; }
+    public String getPublicKey() { return publicKey; }
     public String getBaseUrl() { return baseUrl != null ? baseUrl : "https://api.paystack.co"; }
 
     public String getAuthHeader() { return "Bearer " + secretKey; }
@@ -50,6 +52,13 @@ public class PaystackConfig implements InitializingBean {
         if (key == null) key = trimToNull(System.getProperty("paystack.secretKey"));
         this.secretKey = key;
         this.baseUrl = trimToNull(env.getProperty("app.paystack.baseUrl"));
+
+        // Public key (for SDK)
+        String pk = trimToNull(env.getProperty("app.paystack.publicKey"));
+        if (pk == null) pk = trimToNull(env.getProperty("paystack.publicKey"));
+        if (pk == null) pk = trimToNull(System.getenv("PAYSTACK_PUBLIC_KEY"));
+        if (pk == null) pk = trimToNull(System.getProperty("paystack.publicKey"));
+        this.publicKey = pk;
 
         // Commission percent (owner-controlled)
         Double cp = null;
@@ -68,6 +77,9 @@ public class PaystackConfig implements InitializingBean {
             log.warn("PaystackConfig: Secret key not set (checked app.paystack.secretKey, paystack.secretKey, PAYSTACK_SECRET_KEY, system property). Paystack calls will fail.");
         } else {
             log.info("PaystackConfig: Secret key configured. Base URL: {}", getBaseUrl());
+        }
+        if (publicKey == null) {
+            log.warn("PaystackConfig: Public key not set (checked app.paystack.publicKey, paystack.publicKey, PAYSTACK_PUBLIC_KEY). SDK-based flows cannot be initialized from FE.");
         }
         log.info("Platform commissionPercent set to {}% (owner-controlled)", this.commissionPercent);
     }

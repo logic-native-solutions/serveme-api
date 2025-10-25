@@ -1223,6 +1223,168 @@ public class ProvidersController {
         return null;
     }
 
+    @GetMapping("/paystack/account")
+    public ResponseEntity<?> paystackAccount(Principal principal) {
+        String uid = principal != null ? principal.getName() : null;
+        if (uid == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (paystackConfig.getSecretKey() == null) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                    "error", true,
+                    "reason", "paystack_not_configured",
+                    "message", "Set PAYSTACK_SECRET_KEY or app.paystack.secretKey"
+            ));
+        }
+        try {
+            // Read provider->paystack.subaccountCode
+            Object snap = firestoreService.get("providers", uid);
+            Class<?> docSnapClass = Class.forName("com.google.cloud.firestore.DocumentSnapshot");
+            Boolean exists = (Boolean) docSnapClass.getMethod("exists").invoke(snap);
+            String subCode = null;
+            if (Boolean.TRUE.equals(exists)) {
+                @SuppressWarnings("unchecked") Map<String, Object> data = (Map<String, Object>) docSnapClass.getMethod("getData").invoke(snap);
+                if (data != null && data.get("paystack") instanceof Map<?,?> m) {
+                    Object sc = ((Map<?,?>) m).get("subaccountCode");
+                    if (sc != null) subCode = String.valueOf(sc);
+                }
+            }
+            if (subCode == null || subCode.isBlank()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                        "error", true,
+                        "reason", "not_linked",
+                        "message", "Provider is not linked to a Paystack subaccount."
+                ));
+            }
+
+            // Fetch subaccount details
+            Map<String, Object> subaccount = null;
+            {
+                java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(paystackConfig.getBaseUrl() + "/subaccount/" + subCode))
+                        .header("Authorization", paystackConfig.getAuthHeader())
+                        .GET()
+                        .build();
+                java.net.http.HttpResponse<String> resp = java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                    com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(resp.body());
+                    if (root.path("status").asBoolean(false)) {
+                        com.fasterxml.jackson.databind.JsonNode data = root.path("data");
+                        subaccount = new java.util.HashMap<>();
+                        subaccount.put("id", data.path("id").asText(null));
+                        subaccount.put("subaccount_code", data.path("subaccount_code").asText(null));
+                        subaccount.put("business_name", data.path("business_name").asText(null));
+                        subaccount.put("settlement_bank", data.path("settlement_bank").asText(null));
+                        subaccount.put("account_number", data.path("account_number").asText(null));
+                        subaccount.put("percentage_charge", data.path("percentage_charge").asDouble(0.0));
+                        subaccount.put("is_verified", data.path("is_verified").asBoolean(false));
+                        subaccount.put("active", data.path("active").asBoolean(true));
+                    } else {
+                        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                                "error", true,
+                                "stage", "fetch_subaccount",
+                                "message", root.path("message").asText("Failed to fetch subaccount")
+                        ));
+                    }
+                } else {
+                    return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                            "error", true,
+                            "status", resp.statusCode(),
+                            "stage", "fetch_subaccount",
+                            "body", resp.body()
+                    ));
+                }
+            }
+
+            // Fetch recent transactions for this subaccount
+            java.util.List<Map<String, Object>> transactions = new java.util.ArrayList<>();
+            {
+                String url = paystackConfig.getBaseUrl() + "/transaction?perPage=20&subaccount=" + java.net.URLEncoder.encode(subCode, java.nio.charset.StandardCharsets.UTF_8);
+                java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(url))
+                        .header("Authorization", paystackConfig.getAuthHeader())
+                        .GET()
+                        .build();
+                java.net.http.HttpResponse<String> resp = java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                    com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(resp.body());
+                    if (root.path("status").asBoolean(false)) {
+                        com.fasterxml.jackson.databind.JsonNode data = root.path("data");
+                        if (data.isArray()) {
+                            for (com.fasterxml.jackson.databind.JsonNode n : data) {
+                                Map<String, Object> one = new java.util.HashMap<>();
+                                one.put("id", n.path("id").asText(null));
+                                one.put("reference", n.path("reference").asText(null));
+                                one.put("amount", n.path("amount").asInt(0));
+                                one.put("currency", n.path("currency").asText(null));
+                                one.put("status", n.path("status").asText(null));
+                                one.put("channel", n.path("channel").asText(null));
+                                one.put("fees", n.path("fees").asInt(0));
+                                one.put("paid_at", n.path("paid_at").asText(null));
+                                one.put("created_at", n.path("created_at").asText(null));
+                                transactions.add(one);
+                            }
+                        }
+                    } // else ignore and return empty list
+                } // else ignore and return empty list
+            }
+
+            // Fetch recent settlements for this subaccount (if available)
+            java.util.List<Map<String, Object>> settlements = new java.util.ArrayList<>();
+            {
+                String url = paystackConfig.getBaseUrl() + "/settlement?perPage=20&subaccount=" + java.net.URLEncoder.encode(subCode, java.nio.charset.StandardCharsets.UTF_8);
+                java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(url))
+                        .header("Authorization", paystackConfig.getAuthHeader())
+                        .GET()
+                        .build();
+                java.net.http.HttpResponse<String> resp = java.net.http.HttpClient.newHttpClient().send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                    com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(resp.body());
+                    if (root.path("status").asBoolean(false)) {
+                        com.fasterxml.jackson.databind.JsonNode data = root.path("data");
+                        if (data.isArray()) {
+                            for (com.fasterxml.jackson.databind.JsonNode n : data) {
+                                Map<String, Object> one = new java.util.HashMap<>();
+                                one.put("id", n.path("id").asText(null));
+                                one.put("total_amount", n.path("total_amount").asInt(0));
+                                one.put("currency", n.path("currency").asText(null));
+                                one.put("settled_by", n.path("settled_by").asText(null));
+                                one.put("settlement_date", n.path("settlement_date").asText(null));
+                                one.put("status", n.path("status").asText(null));
+                                settlements.add(one);
+                            }
+                        }
+                    }
+                }
+            }
+
+            Map<String, Object> balances = new java.util.HashMap<>();
+            balances.put("available", 0);
+            balances.put("pending", 0);
+            balances.put("currency", "ZAR");
+            balances.put("note", "Paystack does not expose subaccount balances; funds settle directly to the provider's bank.");
+
+            Map<String, Object> out = new java.util.HashMap<>();
+            out.put("subaccountCode", subCode);
+            out.put("subaccount", subaccount);
+            out.put("balances", balances);
+            out.put("transactions", transactions);
+            out.put("settlements", settlements);
+            return ResponseEntity.ok(out);
+        } catch (ClassNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of(
+                    "error", true,
+                    "reason", "firestore_sdk_missing",
+                    "message", "Firestore SDK not available"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                    "error", true,
+                    "reason", "exception",
+                    "message", e.getMessage()
+            ));
+        }
+    }
+
     @lombok.Data
     public static class PaystackSubaccountRequest {
         private String businessName; // Business/Provider name

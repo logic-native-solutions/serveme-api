@@ -54,6 +54,73 @@ public class PaystackWebhooksController {
                 case "charge.success":
                     String reference = data.path("reference").asText(null);
                     if (reference != null) updateJobPaymentStatusByReference(reference, "succeeded");
+                    // Handle card link flow and job payments for clients
+                    try {
+                        JsonNode metadata = data.path("metadata");
+                        String purpose = metadata.path("purpose").asText("");
+                        String uid = metadata.path("uid").asText("");
+                        // Fallback if Paystack omits metadata.uid: read our initialize-time mapping
+                        if (!StringUtils.hasText(uid)) {
+                            try {
+                                Object sessSnap = firestoreService.get("paystackSessions", reference);
+                                if (sessSnap != null) {
+                                    Class<?> docClass = Class.forName("com.google.cloud.firestore.DocumentSnapshot");
+                                    Boolean exists = (Boolean) docClass.getMethod("exists").invoke(sessSnap);
+                                    if (Boolean.TRUE.equals(exists)) {
+                                        @SuppressWarnings("unchecked") Map<String, Object> sess = (Map<String, Object>) docClass.getMethod("getData").invoke(sessSnap);
+                                        if (sess != null) {
+                                            Object suid = sess.get("uid");
+                                            if (suid != null) uid = String.valueOf(suid);
+                                            Object sp = sess.get("purpose");
+                                            if (!StringUtils.hasText(purpose) && sp != null) purpose = String.valueOf(sp);
+                                        }
+                                    }
+                                }
+                            } catch (Throwable t) {
+                                log.debug("Session lookup failed for reference {}: {}", reference, t.getMessage());
+                            }
+                        }
+                        if ("card_link".equalsIgnoreCase(purpose) && StringUtils.hasText(uid)) {
+                            JsonNode auth = data.path("authorization");
+                            boolean reusable = auth.path("reusable").asBoolean(true);
+                            String authCode = auth.path("authorization_code").asText(null);
+                            if (reusable && StringUtils.hasText(authCode)) {
+                                Map<String, Object> pm = new HashMap<>();
+                                pm.put("id", authCode);
+                                pm.put("authorization_code", authCode);
+                                pm.put("reusable", true);
+                                pm.put("card_type", auth.path("card_type").asText(null));
+                                pm.put("brand", auth.path("brand").asText(null));
+                                pm.put("last4", auth.path("last4").asText(null));
+                                pm.put("exp_month", auth.path("exp_month").asText(null));
+                                pm.put("exp_year", auth.path("exp_year").asText(null));
+                                pm.put("bank", auth.path("bank").asText(null));
+                                pm.put("country_code", auth.path("country_code").asText(null));
+                                pm.put("channel", data.path("channel").asText("card"));
+                                pm.put("email", data.path("customer").path("email").asText(null));
+                                pm.put("createdAt", java.time.Instant.now().toString());
+                                firestoreService.setInSubcollection("clients", uid, "paymentMethods", authCode, pm);
+                                log.info("Stored Paystack reusable authorization for client {}", uid);
+                            }
+                        } else if ("job_payment".equalsIgnoreCase(purpose)) {
+                            String jobId = metadata.path("jobId").asText(null);
+                            if (StringUtils.hasText(jobId)) {
+                                Map<String, Object> pay = new HashMap<>();
+                                pay.put("status", "succeeded");
+                                pay.put("reference", data.path("reference").asText(null));
+                                pay.put("amount", data.path("amount").asLong());
+                                pay.put("currency", data.path("currency").asText(null));
+                                pay.put("channel", data.path("channel").asText(null));
+                                Map<String, Object> update = new HashMap<>();
+                                update.put("payment", pay);
+                                update.put("updatedAt", java.time.Instant.now().toString());
+                                firestoreService.set("jobs", jobId, update);
+                                log.info("Updated job {} payment to succeeded via webhook", jobId);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        log.warn("Failed to process paystack metadata: {}", ex.getMessage());
+                    }
                     break;
                 case "transfer.success":
                     // Optionally update provider payout status
