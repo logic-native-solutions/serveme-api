@@ -36,7 +36,7 @@ public class ServiceCatalogSeeder implements ApplicationRunner {
                     .maxRadiusKm(20)
                     .build();
 
-            Map<String, Object> map = objectMapper.convertValue(plumber, Map.class);
+            Map<String,Object> map = objectMapper.convertValue(plumber, Map.class);
             firestoreService.set("services", "plumber", map);
 //            log.info("[Seeder] Ensured 'services/plumber' exists in Firestore");
 

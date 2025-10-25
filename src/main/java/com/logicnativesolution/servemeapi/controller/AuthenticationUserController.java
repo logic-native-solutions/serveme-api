@@ -83,7 +83,7 @@ public class AuthenticationUserController {
         User user = registerUserService.registerUser(request);
         user.setRole(roleEntity);
         currentUser.setUser(user);
-
+        System.out.println(currentUser.getUser());
         return ResponseEntity.accepted().body(new StatusResponseDto(
                 RegisterStatusUtils.OTP_REQUIRED.name(),
                 "We sent verification codes to your phone/email.",
@@ -97,8 +97,7 @@ public class AuthenticationUserController {
 
     @PostMapping("/login")
     public ResponseEntity<JwtTokenDto> loginUserRequest(
-            @Valid @RequestBody LoginUsersDto request
-    ) {
+            @Valid @RequestBody LoginUsersDto request) {
         // Authenticate credentials first
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
@@ -108,6 +107,7 @@ public class AuthenticationUserController {
         User user = userRepository.findByEmailIgnoreCase(request.getEmail().trim())
                 .orElseThrow();
 
+        System.out.println(user);
         // sub = UUID (matches refresh flow)
         String accessToken = jwtService.generateAccessTokenFor(user);
         String refreshToken = jwtService.generateRefreshTokenFor(user);
@@ -249,7 +249,7 @@ public class AuthenticationUserController {
         User saved = userRepository.save(currentUser.getUser());
 //        log.info("Persisted verified user {}", saved.getEmail());
 
-        // Write users doc to Firestore (best-effort, non-fatal on error)
+        // Write users' doc to Firestore (best-effort, non-fatal on error)
         try {
             Map<String, Object> userDoc = new HashMap<>();
             userDoc.put("role", saved.getRole() != null ? saved.getRole().getName() : null);

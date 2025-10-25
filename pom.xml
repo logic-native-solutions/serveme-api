@@ -186,7 +186,7 @@
                 <configuration>
                     <url>jdbc:postgresql://localhost:5432/serveme_db</url>
                     <user>postgres</user>
-                    <password>Suzan0820</password>
+                    <password>password</password>
                     <cleanDisabled>false</cleanDisabled>
                 </configuration>
             </plugin>

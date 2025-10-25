@@ -31,7 +31,7 @@ public class FirebaseConfig {
     @Value("${app.firebase.credentialsJson:${spring.app.firebase.credentialsJson:}}")
     private String credentialsJson;
 
-    @Value("${app.firebase.credentialsClasspath:com/logicnativesolution/servemeapi/serviceaccount/serveme-e527c-4ce9e77f0f71.json}")
+    @Value("${app.firebase.credentialsClasspath:serviceaccount/serveme-e527c-4ce9e77f0f71.json}")
     private String credentialsClasspath;
 
     @Value("${app.firebase.projectId:${spring.app.firebase.projectId:}}")

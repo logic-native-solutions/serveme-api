@@ -24,7 +24,7 @@ public class JacksonConfig {
             builder.featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
             // Be lenient with unknowns, useful during mobile<->API iterations
             builder.featuresToDisable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
-            // Ensure handler requirement won't break if module is present
+            // Ensure the handler requirement won't break if the module is present
             builder.featuresToDisable(MapperFeature.REQUIRE_SETTERS_FOR_GETTERS);
             builder.serializationInclusion(JsonInclude.Include.NON_NULL);
         };

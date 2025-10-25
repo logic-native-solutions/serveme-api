@@ -7,6 +7,9 @@ import com.logicnativesolution.servemeapi.mapper.ServiceMapper;
 import com.logicnativesolution.servemeapi.mapper.UserAddressMapper;
 import com.logicnativesolution.servemeapi.repository.*;
 import lombok.AllArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -19,13 +22,11 @@ public class ProfileService {
     private final ServiceRepository serviceRepository;
     private final ServiceAreaRepository serviceAreaRepository;
     private final PaymentsDetailsRepository paymentsDetailsRepository;
-    private final HomeController homeController;
     private final RegisterUserService registerUserService;
+    private final CurrentAuthUser currentAuthUser;
 
-
-
-    public void editProfile(EditProfileDto editProfileDto){
-        var user = userRepository.findByEmail(homeController.getCurrentUserEmail()).orElse(null);
+    public void editProfile(EditProfileDto editProfileDto) {
+        var user = currentAuthUser.getAuthUser();
 
         if (user == null)
             throw new RuntimeException("User not found");
@@ -48,7 +49,7 @@ public class ProfileService {
     }
 
     public AddressDto addUserAddress(AddressDto addressRequest) {
-        var user = userRepository.findByEmail(homeController.getCurrentUserEmail()).orElse(null);
+        var user = currentAuthUser.getAuthUser();
 
         if(user == null) {
             throw new RuntimeException("User not found");
