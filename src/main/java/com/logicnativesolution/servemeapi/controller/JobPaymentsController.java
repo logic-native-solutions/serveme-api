@@ -267,6 +267,10 @@ public class JobPaymentsController {
                 payment.put("providerCommission", providerCommission);
                 payment.put("totalCharge", totalCharge);
                 payment.put("currency", currency);
+                payment.put("channel", data.path("channel").asText(null));
+                payment.put("authorization_code", authorizationCode);
+                payment.put("customer_code", data.path("customer").path("customer_code").asText(null));
+                payment.put("paidAt", data.path("paid_at").asText(null));
                 Map<String, Object> jobUpdate = new HashMap<>();
                 jobUpdate.put("payment", payment);
                 jobUpdate.put("updatedAt", Instant.now().toString());

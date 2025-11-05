@@ -10,9 +10,6 @@ public class CompleteProfileRequest {
     private List<String> serviceTypes;
     // Legacy single service identifier (optional for backward compatibility)
     private String serviceId;
-    // Deprecated: Stripe linking info (ignored)
-    private String stripeAccountId;
-    private Boolean stripePayoutsEnabled;
     // Default address to store under users/{uid}.defaultAddress
     private String addressLine1;
     private Double addressLat;

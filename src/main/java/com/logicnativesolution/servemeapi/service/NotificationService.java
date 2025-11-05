@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Map;
 
@@ -12,9 +13,9 @@ import java.util.Map;
  * If Firebase SDK is not present, calls will log and no-op.
  *
  * Notes:
- * - Sends data-only messages; the apps decide how to present UI/notifications.
- * - iOS delivery of FCM requires APNs to be configured in Firebase Console. During development
- *   without an Apple Developer account, Android push works; iOS may not receive pushes.
+ * - Sends data messages and, when possible, attaches a Notification (title/body) for iOS/APNs reliability.
+ * - iOS delivery of FCM requires APNs to be configured in Firebase Console (using your Apple key). This
+ *   service does not need your APN_KEY directly when using FCM; it relies on Firebase setup.
  */
 @Service
 public class NotificationService {
@@ -31,13 +32,43 @@ public class NotificationService {
             // set token
             Method setToken = builderClass.getMethod("setToken", String.class);
             setToken.invoke(builder, token);
+
+            // Optionally set Notification(title, body) to improve iOS delivery/UX
+            try {
+                String title = data != null ? data.getOrDefault("title", null) : null;
+                String body = data != null ? data.getOrDefault("body", null) : null;
+                if (title == null && body == null && data != null) {
+                    // Provide sensible defaults for known types
+                    String type = data.get("type");
+                    if ("job_offer".equals(type)) {
+                        title = "New job near you";
+                        body = "A client requested a service you offer";
+                    }
+                }
+                if (title != null || body != null) {
+                    // Try using Notification(String title, String body)
+                    Class<?> notificationClass = Class.forName("com.google.firebase.messaging.Notification");
+                    Constructor<?> ctor = notificationClass.getConstructor(String.class, String.class);
+                    Object notification = ctor.newInstance(title, body);
+                    Method setNotification = builderClass.getMethod("setNotification", notificationClass);
+                    setNotification.invoke(builder, notification);
+                }
+            } catch (ClassNotFoundException ignored) {
+                // Older Firebase Admin SDK or not present; continue with data-only
+            } catch (NoSuchMethodException ignored) {
+                // API shape differences; continue with data-only
+            }
+
             // add data entries
             Method putData = builderClass.getMethod("putData", String.class, String.class);
             if (data != null) {
                 for (Map.Entry<String, String> e : data.entrySet()) {
-                    putData.invoke(builder, e.getKey(), e.getValue());
+                    if (e.getValue() != null) {
+                        putData.invoke(builder, e.getKey(), e.getValue());
+                    }
                 }
             }
+
             // build
             Method build = builderClass.getMethod("build");
             Object message = build.invoke(builder);

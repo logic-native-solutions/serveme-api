@@ -102,17 +102,61 @@ public class PaystackWebhooksController {
                                 firestoreService.setInSubcollection("clients", uid, "paymentMethods", authCode, pm);
                                 log.info("Stored Paystack reusable authorization for client {}", uid);
                             }
+                        } else if ("provider_card_link".equalsIgnoreCase(purpose) && StringUtils.hasText(uid)) {
+                            JsonNode auth = data.path("authorization");
+                            boolean reusable = auth.path("reusable").asBoolean(true);
+                            String authCode = auth.path("authorization_code").asText(null);
+                            if (reusable && StringUtils.hasText(authCode)) {
+                                Map<String, Object> pm = new HashMap<>();
+                                pm.put("id", authCode);
+                                pm.put("authorization_code", authCode);
+                                pm.put("reusable", true);
+                                pm.put("card_type", auth.path("card_type").asText(null));
+                                pm.put("brand", auth.path("brand").asText(null));
+                                pm.put("last4", auth.path("last4").asText(null));
+                                pm.put("exp_month", auth.path("exp_month").asText(null));
+                                pm.put("exp_year", auth.path("exp_year").asText(null));
+                                pm.put("bank", auth.path("bank").asText(null));
+                                pm.put("country_code", auth.path("country_code").asText(null));
+                                pm.put("channel", data.path("channel").asText("card"));
+                                pm.put("email", data.path("customer").path("email").asText(null));
+                                pm.put("createdAt", java.time.Instant.now().toString());
+                                firestoreService.setInSubcollection("providers", uid, "paymentMethods", authCode, pm);
+                                log.info("Stored Paystack reusable authorization for provider {}", uid);
+                            }
                         } else if ("job_payment".equalsIgnoreCase(purpose)) {
                             String jobId = metadata.path("jobId").asText(null);
                             if (StringUtils.hasText(jobId)) {
-                                Map<String, Object> pay = new HashMap<>();
-                                pay.put("status", "succeeded");
-                                pay.put("reference", data.path("reference").asText(null));
-                                pay.put("amount", data.path("amount").asLong());
-                                pay.put("currency", data.path("currency").asText(null));
-                                pay.put("channel", data.path("channel").asText(null));
+                                // Merge into existing payment map to preserve selection/providerSubaccount
+                                Map<String, Object> paymentMerged = new HashMap<>();
+                                try {
+                                    Object jobSnap2 = firestoreService.get("jobs", jobId);
+                                    if (jobSnap2 != null) {
+                                        Class<?> docClass = Class.forName("com.google.cloud.firestore.DocumentSnapshot");
+                                        Boolean exists2 = (Boolean) docClass.getMethod("exists").invoke(jobSnap2);
+                                        if (Boolean.TRUE.equals(exists2)) {
+                                            @SuppressWarnings("unchecked") Map<String, Object> job = (Map<String, Object>) docClass.getMethod("getData").invoke(jobSnap2);
+                                            if (job != null) {
+                                                Object pm = job.get("payment");
+                                                if (pm instanceof Map<?,?> m) paymentMerged.putAll((Map<String, Object>) m);
+                                            }
+                                        }
+                                    }
+                                } catch (Throwable ignore) {}
+
+                                paymentMerged.put("provider", "paystack");
+                                paymentMerged.put("status", "succeeded");
+                                paymentMerged.put("reference", data.path("reference").asText(null));
+                                paymentMerged.put("amount", data.path("amount").asLong());
+                                paymentMerged.put("currency", data.path("currency").asText(null));
+                                paymentMerged.put("channel", data.path("channel").asText(null));
+                                // Additional reconciliation fields
+                                paymentMerged.put("customer_code", data.path("customer").path("customer_code").asText(null));
+                                paymentMerged.put("authorization_code", data.path("authorization").path("authorization_code").asText(null));
+                                paymentMerged.put("paidAt", data.path("paid_at").asText(java.time.Instant.now().toString()));
+
                                 Map<String, Object> update = new HashMap<>();
-                                update.put("payment", pay);
+                                update.put("payment", paymentMerged);
                                 update.put("updatedAt", java.time.Instant.now().toString());
                                 firestoreService.set("jobs", jobId, update);
                                 log.info("Updated job {} payment to succeeded via webhook", jobId);
@@ -123,7 +167,38 @@ public class PaystackWebhooksController {
                     }
                     break;
                 case "transfer.success":
-                    // Optionally update provider payout status
+                case "transfer.failed":
+                    try {
+                        String tRef = data.path("reference").asText(null);
+                        if (!StringUtils.hasText(tRef)) tRef = data.path("transfer_code").asText(null);
+                        String status = event.endsWith("success") ? "succeeded" : "failed";
+                        if (StringUtils.hasText(tRef)) {
+                            // Lookup our mapping
+                            try {
+                                Object mapSnap = firestoreService.get("paystackTransfers", tRef);
+                                if (mapSnap != null) {
+                                    Class<?> docClass = Class.forName("com.google.cloud.firestore.DocumentSnapshot");
+                                    Boolean exists = (Boolean) docClass.getMethod("exists").invoke(mapSnap);
+                                    if (Boolean.TRUE.equals(exists)) {
+                                        @SuppressWarnings("unchecked") Map<String, Object> map = (Map<String, Object>) docClass.getMethod("getData").invoke(mapSnap);
+                                        if (map != null && "provider_withdrawal".equals(String.valueOf(map.get("purpose")))) {
+                                            String uid = String.valueOf(map.get("uid"));
+                                            String withdrawalId = String.valueOf(map.get("withdrawalId"));
+                                            Map<String, Object> update = new HashMap<>();
+                                            update.put("status", status);
+                                            update.put("reference", tRef);
+                                            update.put("channel", data.path("channel").asText(null));
+                                            update.put("transferredAt", java.time.Instant.now().toString());
+                                            firestoreService.setInSubcollection("providers", uid, "withdrawals", withdrawalId, update);
+                                            log.info("Updated withdrawal {}/{} -> {} via Paystack webhook", uid, withdrawalId, status);
+                                        }
+                                    }
+                                }
+                            } catch (Throwable t) {
+                                log.warn("Failed to reconcile transfer webhook: {}", t.getMessage());
+                            }
+                        }
+                    } catch (Exception ignore) {}
                     break;
                 default:
                     log.info("Unhandled Paystack event: {}", event);

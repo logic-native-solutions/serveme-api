@@ -23,20 +23,10 @@ public class ProviderDoc {
     private Double ratingAvg;
     private Integer ratingCount;
 
-    private Stripe stripe;
     private Verified verified;
 
     private Instant createdAt;
     private Instant updatedAt;
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Stripe {
-        private String accountId;
-        private Boolean payoutsEnabled;
-    }
 
     @Data
     @Builder

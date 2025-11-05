@@ -66,8 +66,6 @@ public class PaystackConfig implements InitializingBean {
             String v = trimToNull(env.getProperty("app.paystack.commissionPercent"));
             if (v == null) v = trimToNull(System.getenv("PLATFORM_COMMISSION_PERCENT"));
             if (v == null) v = trimToNull(System.getenv("SERVEME_COMMISSION_PERCENT"));
-            // fallback to deprecated stripe.applicationFeePercent for migration
-            if (v == null) v = trimToNull(env.getProperty("stripe.applicationFeePercent"));
             if (v != null) cp = Double.parseDouble(v);
         } catch (Exception ignore) {}
         if (cp == null) cp = 15.0; // sensible default

@@ -307,6 +307,19 @@ public class JobsService {
             if (current != null && transitions.containsKey(current) && !transitions.get(current).contains(newStatus)) {
                 throw new IllegalArgumentException("illegal_transition");
             }
+            // Enforce payment success before allowing completion (MVP policy)
+            if ("completed".equals(newStatus)) {
+                Object payObj = data.get("payment");
+                String payStatus = null;
+                if (payObj instanceof Map<?,?> pm) {
+                    Object st = pm.get("status");
+                    if (st != null) payStatus = String.valueOf(st);
+                }
+                if (!"succeeded".equalsIgnoreCase(String.valueOf(payStatus))) {
+                    throw new IllegalStateException("payment_required");
+                }
+            }
+
             Map<String, Object> update = new HashMap<>();
             update.put("status", newStatus);
             Instant now = Instant.now();
@@ -318,10 +331,7 @@ public class JobsService {
                 case "canceled" -> update.put("expiresAt", Date.from(now));
             }
 
-            // On completion: no automatic capture with Paystack; payment status is driven by webhooks/verify.
-            if ("completed".equals(newStatus)) {
-                // Optionally, enforce that payment.status == succeeded before allowing completion.
-            }
+            // On completion: payment status is driven by Paystack webhooks/verify.
 
             firestoreService.set("jobs", id, update);
             data.putAll(update);

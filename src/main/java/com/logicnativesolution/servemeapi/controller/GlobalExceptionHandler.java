@@ -5,7 +5,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
@@ -13,7 +12,11 @@ import org.springframework.web.multipart.MultipartException;
 import java.util.HashMap;
 import java.util.Map;
 
-@ControllerAdvice
+/**
+ * Deprecated: Consolidated into com.logicnativesolution.servemeapi.exception.GlobalExceptionHandler
+ * This class is retained without annotations to avoid duplicate bean registration.
+ */
+@Deprecated
 public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<?> handleBadRequestException(Exception e) {

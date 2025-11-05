@@ -22,7 +22,7 @@ public class JobsController {
     private final JobsService jobsService;
 
     @PostMapping
-    public ResponseEntity<?> create(@RequestBody CreateJobRequest req, Principal p) {
+    public ResponseEntity<?> create(@jakarta.validation.Valid @RequestBody CreateJobRequest req, Principal p) {
         String uid = p != null ? p.getName() : null;
         if (uid == null)
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -92,7 +92,7 @@ public class JobsController {
     }
 
     @PostMapping("/{id}/status")
-    public ResponseEntity<?> updateStatus(@PathVariable String id, @RequestBody UpdateStatusRequest req, Principal p) {
+    public ResponseEntity<?> updateStatus(@PathVariable String id, @jakarta.validation.Valid @RequestBody UpdateStatusRequest req, Principal p) {
         String uid = p != null ? p.getName() : null;
         if (uid == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
@@ -112,7 +112,7 @@ public class JobsController {
     }
 
     @PostMapping("/{id}/messages")
-    public ResponseEntity<?> sendMessage(@PathVariable String id, @RequestBody SendMessageRequest req, Principal p) {
+    public ResponseEntity<?> sendMessage(@PathVariable String id, @jakarta.validation.Valid @RequestBody SendMessageRequest req, Principal p) {
         String uid = p != null ? p.getName() : null;
         if (uid == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
