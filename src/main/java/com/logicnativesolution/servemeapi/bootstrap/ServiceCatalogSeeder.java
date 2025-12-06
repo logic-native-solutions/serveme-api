@@ -32,12 +32,12 @@ public class ServiceCatalogSeeder implements ApplicationRunner {
                             ServiceDoc.AddOn.builder().id("unclog_drain").label("Unclog drain").price(2900L).build(),
                             ServiceDoc.AddOn.builder().id("leak_fix").label("Leak fix").price(3500L).build()
                     ))
-                    .minRadiusKm(5)
-                    .maxRadiusKm(20)
+                    .minRadiusKm(0)
+                    .maxRadiusKm(50)
                     .build();
 
             Map<String,Object> map = objectMapper.convertValue(plumber, Map.class);
-            firestoreService.set("services", "plumber", map);
+            firestoreService.set("services", "Plumber", map);
 //            log.info("[Seeder] Ensured 'services/plumber' exists in Firestore");
 
             ServiceDoc cleaning = ServiceDoc.builder()
@@ -48,16 +48,16 @@ public class ServiceCatalogSeeder implements ApplicationRunner {
                             ServiceDoc.AddOn.builder().id("fridge").label("Clean fridge").price(1200L).build(),
                             ServiceDoc.AddOn.builder().id("house_cleaning").label("House cleaning").price(23900L).build()
                     ))
-                    .minRadiusKm(5).maxRadiusKm(25).build();
-            firestoreService.set("services", "cleaning", objectMapper.convertValue(cleaning, Map.class));
+                    .minRadiusKm(0).maxRadiusKm(50).build();
+            firestoreService.set("services", "Cleaning", objectMapper.convertValue(cleaning, Map.class));
             ServiceDoc electrician = ServiceDoc.builder()
-                    .displayName("Electrician")
+                    .displayName("Electrical")
                     .basePrice(1900L)
                     .addOns(List.of(
                             ServiceDoc.AddOn.builder().id("plug_repair").label("Plug repair").price(1000L).build()
                     ))
-                    .minRadiusKm(5).maxRadiusKm(25).build();
-            firestoreService.set("services", "electrician", objectMapper.convertValue(electrician, Map.class));
+                    .minRadiusKm(0).maxRadiusKm(50).build();
+            firestoreService.set("services", "Electrical", objectMapper.convertValue(electrician, Map.class));
         } catch (UnsupportedOperationException noSdk) {
             log.info("[Seeder] Firebase Admin SDK not present or Firestore unavailable; skipping services seed");
         } catch (Exception e) {

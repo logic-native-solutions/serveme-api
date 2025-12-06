@@ -1,8 +1,10 @@
 package com.logicnativesolution.servemeapi.controller;
 
+import com.google.cloud.firestore.SetOptions;
 import com.logicnativesolution.servemeapi.dto.profile.CompleteProfileRequest;
 import com.logicnativesolution.servemeapi.dto.profile.UpdateLocationRequest;
 import com.logicnativesolution.servemeapi.service.FirestoreService;
+import com.logicnativesolution.servemeapi.util.GeohashUtil;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -486,20 +488,27 @@ public class ProvidersController {
 
     @PostMapping("/location")
     public ResponseEntity<?> updateLocation(@RequestBody UpdateLocationRequest req, Principal principal) {
+        Boolean isOnline = req.getIsOnline();
+        if (isOnline == null) {
+            isOnline = true; // default to true
+        }
         String uid = principal != null ? principal.getName() : null;
         if (uid == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         Map<String, Object> update = new HashMap<>();
         update.put("lat", req.getLat());
         update.put("lng", req.getLng());
-        update.put("isOnline", req.isOnline());
+        update.put("isOnline", isOnline);
+        System.out.println(update.get("lat") + ", " + update.get("lng") + ", " + update.get("isOnline"));
+        update.put("updatedAt", System.currentTimeMillis());
+
         // Compute and store geohash (precision 7 by default)
         try {
-            String geohash = com.logicnativesolution.servemeapi.util.GeohashUtil.encode(req.getLat(), req.getLng(), 7);
+            String geohash = GeohashUtil.encode(req.getLat(), req.getLng(), 7);
             update.put("geohash", geohash);
         } catch (Exception ignore) {}
         try {
             firestoreService.set("providers", uid, update);
-            return ResponseEntity.ok().build();
+            return ResponseEntity.ok(Map.of("Success", true));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to update location");
         }

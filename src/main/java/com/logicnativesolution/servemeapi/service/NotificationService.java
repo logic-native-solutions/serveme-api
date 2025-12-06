@@ -44,8 +44,9 @@ public class NotificationService {
                         title = "New job near you";
                         body = "A client requested a service you offer";
                     }
-                }
-                if (title != null || body != null) {
+                }// Always attach a notification for iOS
+                if (title == null) title = "New update";
+                if (body == null) body = "You have a new message"; {
                     // Try using Notification(String title, String body)
                     Class<?> notificationClass = Class.forName("com.google.firebase.messaging.Notification");
                     Constructor<?> ctor = notificationClass.getConstructor(String.class, String.class);
@@ -88,26 +89,76 @@ public class NotificationService {
         }
     }
 
+
     /**
      * Looks up users/{uid}.fcmToken and sends a data message if available.
      */
+//    public boolean sendToUser(String uid, Map<String, String> data, FirestoreService firestoreService) {
+//        try {
+//            Object snap = firestoreService.get("users", uid);
+//            Class<?> docSnapClass = Class.forName("com.google.cloud.firestore.DocumentSnapshot");
+//            Boolean exists = (Boolean) docSnapClass.getMethod("exists").invoke(snap);
+//            if (!exists) return false;
+//            @SuppressWarnings("unchecked")
+//            Map<String, Object> user = (Map<String, Object>) docSnapClass.getMethod("getData").invoke(snap);
+//            if (user == null) return false;
+//            Object tok = user.get("fcmToken");
+//            if (tok == null) return false;
+//            return sendToToken(data, String.valueOf(tok));
+//        } catch (ClassNotFoundException e) {
+//            log.warn("Firebase SDK not available; cannot fetch user token");
+//            return false;
+//        } catch (Exception e) {
+//            log.warn("Failed to send to user {}", uid, e);
+//            return false;
+//        }
+//    }
     public boolean sendToUser(String uid, Map<String, String> data, FirestoreService firestoreService) {
+        System.out.println("===== FCM SEND TO USER: " + uid + " =====");
         try {
             Object snap = firestoreService.get("users", uid);
             Class<?> docSnapClass = Class.forName("com.google.cloud.firestore.DocumentSnapshot");
             Boolean exists = (Boolean) docSnapClass.getMethod("exists").invoke(snap);
-            if (!exists) return false;
+
+            System.out.println("User document exists: " + exists);
+
+            if (!exists) {
+                System.out.println("❌ User document does not exist");
+                return false;
+            }
+
             @SuppressWarnings("unchecked")
             Map<String, Object> user = (Map<String, Object>) docSnapClass.getMethod("getData").invoke(snap);
-            if (user == null) return false;
+
+            if (user == null) {
+                System.out.println("❌ User data is null");
+                return false;
+            }
+
+            System.out.println("User data keys: " + user.keySet());
+
             Object tok = user.get("fcmToken");
-            if (tok == null) return false;
-            return sendToToken(data, String.valueOf(tok));
+            System.out.println("FCM token present: " + (tok != null) + " (length: " + (tok != null ? String.valueOf(tok).length() : 0) + ")");
+
+            if (tok == null) {
+                System.out.println("❌ No FCM token for user");
+                return false;
+            }
+
+            String token = String.valueOf(tok);
+            System.out.println("Sending FCM with payload: " + data);
+            boolean result = sendToToken(data, token);
+            System.out.println("FCM send result: " + result);
+
+            return result;
         } catch (ClassNotFoundException e) {
             log.warn("Firebase SDK not available; cannot fetch user token");
+            System.out.println("❌ Firebase SDK not available");
             return false;
         } catch (Exception e) {
             log.warn("Failed to send to user {}", uid, e);
+            System.out.println("❌ Exception sending to user: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }

@@ -41,9 +41,18 @@ public class JobsService {
             throw new IllegalArgumentException("serviceType is required");
         }
         try {
+            // Resolve service document by ID, tolerant to casing from frontend (e.g., "Painting").
             Object snap = firestoreService.get("services", req.getServiceType());
             Class<?> docSnapClass = Class.forName("com.google.cloud.firestore.DocumentSnapshot");
             Boolean exists = (Boolean) docSnapClass.getMethod("exists").invoke(snap);
+            if (!exists) {
+                // Fallback: try lowercase variant since our seeded IDs are lowercase slugs
+                String lc = req.getServiceType() == null ? null : req.getServiceType().toLowerCase();
+                if (lc != null) {
+                    snap = firestoreService.get("services", lc);
+                    exists = (Boolean) docSnapClass.getMethod("exists").invoke(snap);
+                }
+            }
             if (!exists) throw new NoSuchElementException("Unknown serviceType");
             @SuppressWarnings("unchecked")
             Map<String, Object> service = (Map<String, Object>) docSnapClass.getMethod("getData").invoke(snap);
@@ -141,7 +150,10 @@ public class JobsService {
                     Object sts = p.get("serviceTypes");
                     boolean supports = false;
                     if (sts instanceof List<?> lst) {
-                        for (Object o : lst) { if (req.getServiceType().equals(String.valueOf(o))) { supports = true; break; } }
+                        for (Object o : lst) {
+                            String v = String.valueOf(o);
+                            if (v != null && req.getServiceType() != null && v.equalsIgnoreCase(req.getServiceType())) { supports = true; break; }
+                        }
                     }
                     if (!supports) continue;
                     Double plat = p.get("lat") instanceof Number n ? n.doubleValue() : null;
@@ -168,6 +180,9 @@ public class JobsService {
                 payload.put("type", "job_offer");
                 payload.put("jobId", jobId);
                 payload.put("serviceType", req.getServiceType());
+                // Provide Notification fields for iOS/APNs reliability
+                payload.put("title", "New job near you");
+                payload.put("body", "A client requested a service you offer");
                 Date nowTs = Date.from(Instant.now());
                 List<Map<String, Object>> toPersist = new ArrayList<>(existingFanOut);
                 for (Map<String, Object> entry : candidateEntries) {
